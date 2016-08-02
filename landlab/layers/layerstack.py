@@ -48,6 +48,38 @@ class LayerFields(object):
 
 
 class LayerStack(LayerFields):
+
+    """A stack of layers piled on top of one another.
+
+    Parameters
+    ----------
+    n_grains : int
+        Number of grain types to track.
+    z0 : float
+        Elevation to the base of the stack.
+    dz : float
+        Thickness of new layer bins.
+
+    Examples
+    --------
+    >>> from landlab.layers import LayerStack
+    >>> layers = LayerStack(z0=2.)
+    >>> layers.base
+    2.
+    >>> layers.top
+    2.
+    >>> layers.z
+    array([2.])
+
+    >>> layers.add(2.5)
+    >>> layers.base
+    2.
+    >>> layers.top
+    4.5
+    >>> layers.z
+    array([2., 3., 4., 4.5])
+    """
+
     def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
         self._z = np.arange(10, dtype=float) * dz
         self._z0 = z0
@@ -59,7 +91,18 @@ class LayerStack(LayerFields):
 
     @property
     def base(self):
-        """Elevation of the bottom of the column."""
+        """Elevation of the bottom of the column.
+        
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack()
+        >>> layers.base
+        0.
+        >>> layers.base += 2.
+        >>> layers.base
+        2.
+        """
         return self._z0
 
     @base.setter
@@ -68,7 +111,18 @@ class LayerStack(LayerFields):
 
     @property
     def top(self):
-        """Elevation of the top of the column."""
+        """Elevation of the top of the column.
+        
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack()
+        >>> layers.base, layers.top
+        0., 0.
+        >>> layers.top = 2.
+        >>> layers.base, layers.top
+        2., 2.
+        """
         return self.base + self._z[self._top]
 
     @top.setter
@@ -77,12 +131,35 @@ class LayerStack(LayerFields):
 
     @property
     def z(self):
-        """Elevation to bottom of each layer."""
+        """Elevation to bottom of each layer.
+        
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack(z0=3.)
+        >>> layers.z
+        array([3.])
+        >>> layers.add(1.5)
+        >>> layers.z
+        array([3., 4., 4.5])
+        """
         return self._z[:self._top + 1]
 
     @property
     def dz(self):
-        """Thickness of new bins."""
+        """Thickness of new bins.
+        
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack()
+        >>> layers.dz
+        1.
+
+        >>> layers = LayerStack(dz=2)
+        >>> layers.dz
+        2.
+        """
         return self._dz
 
     @property
@@ -103,6 +180,19 @@ class LayerStack(LayerFields):
         super(LayerStack, self).resize(min=min)
 
     def is_empty(self):
+        """Check if the stack has any layers.
+        
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack()
+        >>> layers.is_empty()
+        True
+
+        >>> layers.add(.1)
+        >>> layers.is_empty()
+        False
+        """
         return self._top == 0
 
     def add(self, dz, **kwds):
