@@ -3,6 +3,7 @@ import bisect
 
 
 class LayerFields(object):
+
     def __new__(cls, *args, **kwds):
         for field in kwds.get('fields', ()):
             setattr(cls, field, property(lambda self: self[field], doc=field))
@@ -20,10 +21,11 @@ class LayerFields(object):
             self._fields[name] = np.empty(self.size, **kwds)
 
     def add(self, dz, **kwds):
-        bins = self.extract(self.top - dz)
+        """Add properties to the top of a stack."""
+        bins = self.extract(self.thickness - dz)
         n_bins = len(bins)
         for name, val in kwds.items():
-            array = getattr(self, name)[-n_bins:]
+            array = getattr(self, name)[-(n_bins - 1):]
             array[1:] = val
 
             array[0] = (
@@ -32,19 +34,21 @@ class LayerFields(object):
             ) / (bins[1] - self.z[-n_bins])
 
     def resize(self, *args, **kwds):
+        """Resize field arrays."""
         for name, array in self._fields.items():
             self._fields[name] = np.resize(array, self.size)
 
     def reduce(self, dz, name):
-        bins = np.diff(self.extract(self.top - dz))
-        return np.sum(getattr(self, name)[-len(bins):] * bins / dz)
+        bin_dz = np.diff(self.extract(self.thickness - dz))
+        return np.sum(getattr(self, name)[-len(bin_dz):] * bin_dz / dz)
 
     @property
     def fields(self):
+        """Names of fields tracked."""
         return self._fields.keys()
 
     def __getitem__(self, name):
-        return self._fields[name][:self._top + 1]
+        return self._fields[name][:self._top]
 
 
 class LayerStack(LayerFields):
@@ -65,19 +69,34 @@ class LayerStack(LayerFields):
     >>> from landlab.layers import LayerStack
     >>> layers = LayerStack(z0=2.)
     >>> layers.base
-    2.
+    2.0
     >>> layers.top
-    2.
+    2.0
     >>> layers.z
-    array([2.])
+    array([ 0.])
 
     >>> layers.add(2.5)
     >>> layers.base
-    2.
+    2.0
     >>> layers.top
     4.5
     >>> layers.z
-    array([2., 3., 4., 4.5])
+    array([ 0. ,  1. ,  2. ,  2.5])
+
+    >>> layers = LayerStack(fields=('age', ))
+    >>> layers.age
+    array([], dtype=float64)
+    >>> layers.add(1.5, age=1.)
+    >>> layers.age
+    array([ 1.,  1.])
+    >>> layers.z
+    array([ 0. ,  1. ,  1.5])
+
+    >>> layers.add(2., age=2.)
+    >>> layers.age
+    array([ 1. ,  1.5,  2. ,  2. ])
+    >>> layers.z
+    array([ 0. ,  1. ,  2. ,  3. ,  3.5])
     """
 
     def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
@@ -98,16 +117,20 @@ class LayerStack(LayerFields):
         >>> from landlab.layers import LayerStack
         >>> layers = LayerStack()
         >>> layers.base
-        0.
+        0.0
         >>> layers.base += 2.
         >>> layers.base
-        2.
+        2.0
         """
         return self._z0
 
     @base.setter
     def base(self, new_base):
         self._z0 = new_base
+
+    @property
+    def thickness(self):
+        return self.z[-1]
 
     @property
     def top(self):
@@ -118,10 +141,10 @@ class LayerStack(LayerFields):
         >>> from landlab.layers import LayerStack
         >>> layers = LayerStack()
         >>> layers.base, layers.top
-        0., 0.
+        (0.0, 0.0)
         >>> layers.top = 2.
         >>> layers.base, layers.top
-        2., 2.
+        (2.0, 2.0)
         """
         return self.base + self._z[self._top]
 
@@ -138,10 +161,10 @@ class LayerStack(LayerFields):
         >>> from landlab.layers import LayerStack
         >>> layers = LayerStack(z0=3.)
         >>> layers.z
-        array([3.])
+        array([ 0.])
         >>> layers.add(1.5)
         >>> layers.z
-        array([3., 4., 4.5])
+        array([ 0. ,  1. ,  1.5])
         """
         return self._z[:self._top + 1]
 
@@ -154,11 +177,11 @@ class LayerStack(LayerFields):
         >>> from landlab.layers import LayerStack
         >>> layers = LayerStack()
         >>> layers.dz
-        1.
+        1.0
 
         >>> layers = LayerStack(dz=2)
         >>> layers.dz
-        2.
+        2.0
         """
         return self._dz
 
