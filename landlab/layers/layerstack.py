@@ -5,8 +5,10 @@ import bisect
 class LayerFields(object):
 
     def __new__(cls, *args, **kwds):
-        for field in kwds.get('fields', ()):
-            setattr(cls, field, property(lambda self: self[field], doc=field))
+        for field in ('f', ) + kwds.get('fields', ()):
+            setattr(cls, field, property(lambda x, field=field: x[field],
+                                         doc=field))
+
         return object.__new__(cls, *args, **kwds)
 
     def __init__(self, *args, **kwds):
@@ -15,6 +17,8 @@ class LayerFields(object):
         self._fields = dict()
         for field in kwds.get('fields', ()):
             self._add_field(field)
+
+        self._fields['f'] = np.empty((self.size, kwds.get('n_grains', 1) - 1))
 
     def _add_field(self, name, **kwds):
         if name not in self._fields:
@@ -103,10 +107,9 @@ class LayerStack(LayerFields):
         self._z = np.arange(10, dtype=float) * dz
         self._z0 = z0
         self._dz = float(dz)
-
         self._top = 0
 
-        super(LayerStack, self).__init__(**kwds)
+        super(LayerStack, self).__init__(n_grains=n_grains, **kwds)
 
     @property
     def base(self):
