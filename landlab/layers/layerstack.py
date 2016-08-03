@@ -9,7 +9,8 @@ class LayerFields(object):
             setattr(cls, field, property(lambda x, field=field: x[field],
                                          doc=field))
 
-        return object.__new__(cls, *args, **kwds)
+        return object.__new__(cls)
+        # return object.__new__(cls, *args, **kwds)
 
     def __init__(self, *args, **kwds):
         self._fields = dict()
