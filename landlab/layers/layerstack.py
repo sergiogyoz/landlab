@@ -18,11 +18,11 @@ class LayerFields(object):
         for field in kwds.get('fields', ()):
             self._add_field(field)
 
-        self._fields['f'] = np.empty((self.size, kwds.get('n_grains', 1) - 1))
+        self._fields['f'] = np.empty((self.allocated, kwds.get('n_grains', 1) - 1))
 
     def _add_field(self, name, **kwds):
         if name not in self._fields:
-            self._fields[name] = np.empty(self.size, **kwds)
+            self._fields[name] = np.empty(self.allocated, **kwds)
 
     def add(self, dz, **kwds):
         """Add properties to the top of a stack."""
@@ -40,7 +40,7 @@ class LayerFields(object):
     def resize(self, *args, **kwds):
         """Resize field arrays."""
         for name, array in self._fields.items():
-            self._fields[name] = np.resize(array, self.size)
+            self._fields[name] = np.resize(array, self.allocated)
 
     def reduce(self, dz, name):
         bin_dz = np.diff(self.extract(self.thickness - dz))
@@ -104,7 +104,7 @@ class LayerStack(LayerFields):
     """
 
     def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
-        self._z = np.arange(10, dtype=float) * dz
+        self._z = np.arange(4, dtype=float) * dz
         self._z0 = z0
         self._dz = float(dz)
         self._top = 0
@@ -189,21 +189,29 @@ class LayerStack(LayerFields):
         return self._dz
 
     @property
+    def nlayers(self):
+        return self._top
+
+    @property
     def size(self):
+        return self._top + 1
+
+    @property
+    def allocated(self):
         return self._z.size
 
-    def resize(self, min=None):
-        min = min or int(self.size * 1.25)
+    def resize(self, newsize):
+        newsize = int(newsize)
+        if newsize < self.allocated:
+            return
 
-        n_bins = int(self.size * 1.25)
-        while n_bins < min:
-            n_bins = int(n_bins * 1.25)
+        new_allocated = (newsize >> 3) + 6 + newsize
 
-        self._z = np.append(
-            self._z,
-            np.arange(1, n_bins - self._z.size + 1) * self._dz + self._z[-1])
+        new_z = np.arange(0., new_allocated * self.dz, self.dz)
+        new_z[:self.allocated] = self._z
+        self._z = new_z
 
-        super(LayerStack, self).resize(min=min)
+        super(LayerStack, self).resize(newsize)
 
     def is_empty(self):
         """Check if the stack has any layers.
@@ -238,7 +246,8 @@ class LayerStack(LayerFields):
             self._z[self._top] = self._z[self._top - 1] + self._dz
 
         if fill_to > self._z[-1]:
-            self.resize(min=self.size + (fill_to - self._z[-1]) / self._dz + 1)
+            self.resize(self.allocated +
+                        (fill_to - self._z[-1]) / self._dz + 1)
 
         new_top = bisect.bisect_left(self._z[self._top:], fill_to) + self._top
 
@@ -272,15 +281,58 @@ class LayerStack(LayerFields):
         """Lower the base of the stack."""
         self.lift(- dz)
 
+    def layer_at(self, z, left=False):
+        """Find the layer containing a particular elevation.
+
+        Parameters
+        ----------
+        z : float
+            Elevation as measured from the bottom of the stack.
+
+        Returns
+        -------
+        int
+            Layer number that contains the elevation.
+        """
+        if z < 0. or z > self.thickness:
+            raise ValueError('elevation is outside the column')
+        if left:
+            return bisect.bisect_left(self._z[:self._top + 1], z) - 1
+        else:
+            return bisect.bisect_right(self._z[:self._top + 1], z) - 1
+
     def extract(self, start=0, stop=None):
+        """Extract layers from a column.
+
+        Parameters
+        ----------
+        start : float, optional
+            Starting elevation in stack.
+        stop : float, optional
+            Stopping elevation in stack.
+
+        Examples
+        --------
+        >>> from landlab.layers import LayerStack
+        >>> layers = LayerStack()
+        >>> layers.add(5.5)
+        >>> layers.z
+        array([ 0. ,  1. ,  2. ,  3. ,  4. ,  5. ,  5.5])
+
+        >>> layers.extract(.5, 4.2)
+        array([ 0.5,  1. ,  2. ,  3. ,  4. ,  4.2])
+
+        >>> layers.extract(1., 4.)
+        array([ 1.,  2.,  3.,  4.])
+        """
         if stop is None:
             stop = self.top
         start, stop = sorted((start, stop))
         start = np.maximum(start, 0.)
-        stop = np.minimum(stop, self.top)
+        stop = np.minimum(stop, self.thickness)
 
-        bottom = bisect.bisect(self._z[:self._top], start) - 1
-        top = bisect.bisect_left(self._z[:self._top + 1], stop)
+        bottom = self.layer_at(start)
+        top = self.layer_at(stop, left=True) + 1
 
         z = self._z[bottom:top + 1].copy()
         z[0], z[-1] = start, stop
