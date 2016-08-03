@@ -12,8 +12,6 @@ class LayerFields(object):
         return object.__new__(cls, *args, **kwds)
 
     def __init__(self, *args, **kwds):
-        super(LayerFields, self).__init__(*args, **kwds)
-
         self._fields = dict()
         for field in kwds.get('fields', ()):
             self._add_field(field)
