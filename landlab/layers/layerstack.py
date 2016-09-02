@@ -16,7 +16,8 @@ class LayerFields(object):
         for field in kwds.get('fields', ()):
             self._add_field(field)
 
-        self._fields['f'] = np.empty((self.allocated, kwds.get('n_grains', 1) - 1))
+        self._fields['f'] = np.empty((self.allocated,
+                                      kwds.get('n_grains', 1) - 1))
 
     def _add_field(self, name, **kwds):
         if name not in self._fields:
@@ -33,6 +34,7 @@ class LayerFields(object):
         bins = self.extract(self.thickness - dz)
         n_bins = len(bins)
         for name, val in kwds.items():
+            val = np.asarray(val)
             array = getattr(self, name)[-(n_bins - 1):]
             array[1:] = val
 
@@ -289,7 +291,7 @@ class LayerStack(LayerFields):
         """Lower the base of the stack."""
         self.lift(- dz)
 
-    def layer_at(self, z, left=False):
+    def layer_at(self, z, lower=False):
         """Find the layer containing a particular elevation.
 
         Parameters
@@ -304,7 +306,7 @@ class LayerStack(LayerFields):
         """
         if z < 0. or z > self.thickness:
             raise ValueError('elevation is outside the column')
-        if left:
+        if lower:
             return bisect.bisect_left(self._z[:self._top + 1], z) - 1
         else:
             return bisect.bisect_right(self._z[:self._top + 1], z) - 1
@@ -340,7 +342,7 @@ class LayerStack(LayerFields):
         stop = np.minimum(stop, self.thickness)
 
         bottom = self.layer_at(start)
-        top = self.layer_at(stop, left=True) + 1
+        top = self.layer_at(stop, lower=True) + 1
 
         z = self._z[bottom:top + 1].copy()
         z[0], z[-1] = start, stop
