@@ -10,7 +10,6 @@ class LayerFields(object):
                                          doc=field))
 
         return object.__new__(cls)
-        # return object.__new__(cls, *args, **kwds)
 
     def __init__(self, *args, **kwds):
         self._fields = dict()
@@ -24,7 +23,13 @@ class LayerFields(object):
             self._fields[name] = np.empty(self.allocated, **kwds)
 
     def add(self, dz, **kwds):
-        """Add properties to the top of a stack."""
+        """Add properties to the top of a stack.
+
+        Parameters
+        ----------
+        dz : float
+            The amount of sediment to add to the stack.
+        """
         bins = self.extract(self.thickness - dz)
         n_bins = len(bins)
         for name, val in kwds.items():
@@ -263,12 +268,16 @@ class LayerStack(LayerFields):
         dz : float
             Amount of sediment to remove.
         """
-        if thickness < 0:
-            return self.add(- thickness)
+        if dz < 0:
+            return self.add(- dz)
 
         new_z = self._z[self._top] - dz
-        new_top = bisect.bisect_left(self._z[:self._top], new_z)
-        self._z[self._top:] *= self._dz
+        if new_z < 0.:
+            new_z, new_top = 0., 0
+        else:
+            new_top = bisect.bisect_left(self._z[:self._top], new_z)
+        # self._z[self._top:] *= self._dz
+        self._z[self._top] = self._z[self._top - 1] + self._dz
         self._top = new_top
         self._z[self._top] = new_z
 
