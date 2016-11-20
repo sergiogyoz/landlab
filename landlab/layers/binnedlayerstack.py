@@ -323,8 +323,8 @@ class BinnedLayerStack(BinnedLayerFields):
 
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack()
         >>> layers.add(5.5)
         >>> layers.z
         array([ 0. ,  1. ,  2. ,  3. ,  4. ,  5. ,  5.5])
