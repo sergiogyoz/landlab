@@ -1,3 +1,4 @@
-from .layerstack import LayerStack
+from .layerstack import LayerStack, LayerGridStack
+from .binnedlayerstack import BinnedLayerStack
 
-__all__ = ['LayerStack', ]
+__all__ = ['LayerStack', 'LayerGridStack', 'BinnedLayerStack']

@@ -2,7 +2,7 @@ import numpy as np
 import bisect
 
 
-class LayerFields(object):
+class BinnedLayerFields(object):
 
     def __new__(cls, *args, **kwds):
         for field in ('f', ) + kwds.get('fields', ()):
@@ -61,7 +61,7 @@ class LayerFields(object):
         return self._fields[name][:self._top]
 
 
-class LayerStack(LayerFields):
+class BinnedLayerStack(BinnedLayerFields):
 
     """A stack of layers piled on top of one another.
 
@@ -76,8 +76,8 @@ class LayerStack(LayerFields):
 
     Examples
     --------
-    >>> from landlab.layers import LayerStack
-    >>> layers = LayerStack(z0=2.)
+    >>> from landlab.layers import BinnedLayerStack
+    >>> layers = BinnedLayerStack(z0=2.)
     >>> layers.base
     2.0
     >>> layers.top
@@ -93,7 +93,7 @@ class LayerStack(LayerFields):
     >>> layers.z
     array([ 0. ,  1. ,  2. ,  2.5])
 
-    >>> layers = LayerStack(fields=('age', ))
+    >>> layers = BinnedLayerStack(fields=('age', ))
     >>> layers.age
     array([], dtype=float64)
     >>> layers.add(1.5, age=1.)
@@ -115,7 +115,7 @@ class LayerStack(LayerFields):
         self._dz = float(dz)
         self._top = 0
 
-        super(LayerStack, self).__init__(n_grains=n_grains, **kwds)
+        super(BinnedLayerStack, self).__init__(n_grains=n_grains, **kwds)
 
     @property
     def base(self):
@@ -123,8 +123,8 @@ class LayerStack(LayerFields):
         
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack()
         >>> layers.base
         0.0
         >>> layers.base += 2.
@@ -147,8 +147,8 @@ class LayerStack(LayerFields):
         
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack()
         >>> layers.base, layers.top
         (0.0, 0.0)
         >>> layers.top = 2.
@@ -167,8 +167,8 @@ class LayerStack(LayerFields):
         
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack(z0=3.)
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack(z0=3.)
         >>> layers.z
         array([ 0.])
         >>> layers.add(1.5)
@@ -183,12 +183,12 @@ class LayerStack(LayerFields):
         
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack()
         >>> layers.dz
         1.0
 
-        >>> layers = LayerStack(dz=2)
+        >>> layers = BinnedLayerStack(dz=2)
         >>> layers.dz
         2.0
         """
@@ -217,15 +217,15 @@ class LayerStack(LayerFields):
         new_z[:self.allocated] = self._z
         self._z = new_z
 
-        super(LayerStack, self).resize(newsize)
+        super(BinnedLayerStack, self).resize(newsize)
 
     def is_empty(self):
         """Check if the stack has any layers.
         
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import BinnedLayerStack
+        >>> layers = BinnedLayerStack()
         >>> layers.is_empty()
         True
 
@@ -260,7 +260,7 @@ class LayerStack(LayerFields):
         self._z[new_top] = fill_to
         self._top = new_top
 
-        super(LayerStack, self).add(dz, **kwds)
+        super(BinnedLayerStack, self).add(dz, **kwds)
 
     def remove(self, dz):
         """Remove sediment from the top of a column.
