@@ -1,7 +1,5 @@
 import numpy as np
 
-# from .layers import Layers, LayerFields
-# from .layergridstack import LayerGridStack
 from .layerstack import LayerStack
 
 
