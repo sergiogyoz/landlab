@@ -40,10 +40,6 @@ class LayerFields(object):
         dz : float
             The amount of sediment to add to the stack.
         """
-        # if not kwds.contains(self._fields):
-        #     pass
-        # bins = self.extract(self.thickness - dz)
-        # n_bins = len(bins)
         for name, val in kwds.items():
             val = np.asarray(val)
             array = getattr(self, name)
@@ -144,7 +140,6 @@ class Layers(object):
 
     @property
     def allocated(self):
-        # return self._z.size
         return self._z.shape[0]
 
     def resize(self, newsize):

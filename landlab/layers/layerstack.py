@@ -5,15 +5,6 @@ from .layers import Layers, LayerFields
 
 class LayerStack(Layers, LayerFields):
 
-    # def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
-    #     self._z0 = np.asarray(z0, dtype=float)
-    #     self._z = np.empty((4, ) + self._z0.shape, dtype=float)
-    #     self._top = 0
-
-    #     self._z[self._top] = 0.
-
-    #     super(LayerGridStack, self).__init__(n_grains=n_grains, **kwds)
-
     def add(self, dz, **kwds):
         """Add sediment to a column.
 
