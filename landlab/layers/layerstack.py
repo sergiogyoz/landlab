@@ -5,53 +5,63 @@ from .layers import Layers, LayerFields
 
 class LayerStack(Layers, LayerFields):
 
-    """A 1D stack of layers piled on top of one another.
+    # def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
+    #     self._z0 = np.asarray(z0, dtype=float)
+    #     self._z = np.empty((4, ) + self._z0.shape, dtype=float)
+    #     self._top = 0
 
-    Parameters
-    ----------
-    n_grains : int
-        Number of grain types to track.
-    z0 : float
-        Elevation to the base of the stack.
+    #     self._z[self._top] = 0.
 
-    Examples
-    --------
-    >>> from landlab.layers import LayerStack
-    >>> layers = LayerStack(z0=2.)
-    >>> layers.base
-    2.0
-    >>> layers.top
-    2.0
-    >>> layers.z
-    array([ 0.])
+    #     super(LayerGridStack, self).__init__(n_grains=n_grains, **kwds)
 
-    >>> layers.add(2.5)
-    >>> layers.base
-    2.0
-    >>> layers.top
-    4.5
-    >>> layers.z
-    array([ 0. ,  2.5])
+    def add(self, dz, **kwds):
+        """Add sediment to a column.
 
-    >>> layers = LayerStack(fields=('age', ))
-    >>> layers.age
-    array([], dtype=float64)
-    >>> layers.add(1.5, age=1.)
-    >>> layers.age
-    array([ 1.])
-    >>> layers.z
-    array([ 0. ,  1.5])
+        Parameters
+        ----------
+        dz : float
+            Amount of sediment to add.
+        """
+        if dz < 0:
+            return self.remove(- dz)
 
-    >>> layers.add(2., age=2.)
-    >>> layers.age
-    array([ 1.,  2.])
-    >>> layers.z
-    array([ 0. ,  1.5,  3.5])
-    """
+        if self._top + 1 > self.allocated:
+            self.resize(self.allocated + 1)
 
-    def __init__(self, n_grains=1, z0=0., dz=1., **kwds):
-        self._z = np.arange(4, dtype=float) * dz
-        self._z0 = z0
-        self._top = 0
+        self._top += 1
+        self._z[self._top] = self._z[self._top - 1] + dz
 
-        super(LayerStack, self).__init__(n_grains=n_grains, **kwds)
+        super(Layers, self).add(dz, **kwds)
+
+    def remove(self, dz):
+        """Remove sediment from the top of a column.
+
+        Parameters
+        ----------
+        dz : float
+            Amount of sediment to remove.
+        """
+        if dz < 0:
+            return self.add(- dz)
+
+        new_z = self._z[self._top] - dz
+        if new_z < 0.:
+            new_z, new_top = 0., 0
+        else:
+            new_top = bisect.bisect_left(self._z[:self._top], new_z)
+
+        self._z[new_top:self._top + 1] = new_z
+        self._z[self._top] = new_z
+
+    def resize(self, newsize):
+        newsize = int(newsize)
+        if newsize < self.allocated:
+            return
+
+        new_allocated = (newsize >> 3) + 6 + newsize
+
+        new_z = np.empty_like(self._z, (new_allocated, ) + self._z.shape[1:])
+        new_z[:self.allocated] = self._z
+        self._z = new_z
+
+        super(LayerGridStack, self).resize(newsize)
