@@ -1,9 +1,11 @@
 import numpy as np
 
-from .layers import Layers, LayerFields
+# from .layers import Layers, LayerFields
+# from .layergridstack import LayerGridStack
+from .layerstack import LayerStack
 
 
-class LayerStack(Layers, LayerFields):
+class LayerPointStack(LayerStack):
 
     """A 1D stack of layers piled on top of one another.
 
@@ -16,8 +18,8 @@ class LayerStack(Layers, LayerFields):
 
     Examples
     --------
-    >>> from landlab.layers import LayerStack
-    >>> layers = LayerStack(z0=2.)
+    >>> from landlab.layers import LayerPointStack
+    >>> layers = LayerPointStack(z0=2.)
     >>> layers.base
     2.0
     >>> layers.top
@@ -33,7 +35,7 @@ class LayerStack(Layers, LayerFields):
     >>> layers.z
     array([ 0. ,  2.5])
 
-    >>> layers = LayerStack(fields=('age', ))
+    >>> layers = LayerPointStack(fields=('age', ))
     >>> layers.age
     array([], dtype=float64)
     >>> layers.add(1.5, age=1.)
@@ -54,4 +56,4 @@ class LayerStack(Layers, LayerFields):
         self._z0 = z0
         self._top = 0
 
-        super(LayerStack, self).__init__(n_grains=n_grains, **kwds)
+        super(LayerPointStack, self).__init__(n_grains=n_grains, **kwds)
