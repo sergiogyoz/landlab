@@ -43,16 +43,3 @@ class LayerStack(Layers, LayerFields):
 
         self._z[new_top:self._top + 1] = new_z
         self._z[self._top] = new_z
-
-    def resize(self, newsize):
-        newsize = int(newsize)
-        if newsize < self.allocated:
-            return
-
-        new_allocated = (newsize >> 3) + 6 + newsize
-
-        new_z = np.empty_like(self._z, (new_allocated, ) + self._z.shape[1:])
-        new_z[:self.allocated] = self._z
-        self._z = new_z
-
-        super(LayerGridStack, self).resize(newsize)
