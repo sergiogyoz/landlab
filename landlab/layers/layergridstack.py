@@ -1,9 +1,9 @@
 import numpy as np
 
-from .layers import Layers, LayerFields
+from .layerstack import LayerStack
 
 
-class LayerGridStack(Layers, LayerFields):
+class LayerGridStack(LayerStack):
 
     """A stack of 2D grid layers stacked on top of one another.
 
