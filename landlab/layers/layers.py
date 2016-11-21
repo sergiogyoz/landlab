@@ -176,45 +176,6 @@ class Layers(object):
         """
         return self._top == 0
 
-    def add(self, dz, **kwds):
-        """Add sediment to a column.
-
-        Parameters
-        ----------
-        dz : float
-            Amount of sediment to add.
-        """
-        if dz < 0:
-            return self.remove(- dz)
-
-        if self._top + 1 > self.allocated:
-            self.resize(self.allocated + 1)
-
-        self._top += 1
-        self._z[self._top] = self._z[self._top - 1] + dz
-
-        super(Layers, self).add(dz, **kwds)
-
-    def remove(self, dz):
-        """Remove sediment from the top of a column.
-
-        Parameters
-        ----------
-        dz : float
-            Amount of sediment to remove.
-        """
-        if dz < 0:
-            return self.add(- dz)
-
-        new_z = self._z[self._top] - dz
-        if new_z < 0.:
-            new_z, new_top = 0., 0
-        else:
-            new_top = bisect.bisect_left(self._z[:self._top], new_z)
-
-        self._z[new_top:self._top + 1] = new_z
-        self._z[self._top] = new_z
-
     def lift(self, dz):
         """Lift the base of the stack."""
         self.base += dz
@@ -255,8 +216,8 @@ class Layers(object):
 
         Examples
         --------
-        >>> from landlab.layers import LayerStack
-        >>> layers = LayerStack()
+        >>> from landlab.layers import LayerPointStack
+        >>> layers = LayerPointStack()
         >>> layers.add(5.5)
         >>> layers.z
         array([ 0. ,  5.5])
