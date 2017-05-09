@@ -51,9 +51,9 @@ script:
   if [[ "$BUILD_DOCS" == "1" ]]; then
     (cd docs && make html 2> /dev/null)
   fi
-- bash .ci/travis/run_travis_test.sh
-- bash ./.ci/travis/test-conda-install.sh
-- bash ./.ci/travis/test-pip-install.sh
+- bash .ci/travis/run_travis_test.sh || exit 1
+- bash ./.ci/travis/test-conda-install.sh || exit 1
+- bash ./.ci/travis/test-pip-install.sh || exit 1
 virtualenv:
   system_site_packages: false
 after_success:
