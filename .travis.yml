@@ -52,6 +52,8 @@ script:
     (cd docs && make html 2> /dev/null)
   fi
 - bash .ci/travis/run_travis_test.sh
+- bash ./.ci/travis/test-conda-install.sh
+- bash ./.ci/travis/test-pip-install.sh
 virtualenv:
   system_site_packages: false
 after_success:
