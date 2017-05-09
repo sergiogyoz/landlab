@@ -10,6 +10,6 @@ else
   PYTHON=python
 fi
 $PYTHON setup.py develop
-cd scripts && $PYTHON ./test-installed-landlab.py
+cd scripts && $PYTHON ./test-installed-landlab.py || exit 1
 source deactivate
 conda remove -n _pip_install --all

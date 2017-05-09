@@ -4,6 +4,6 @@ conda create -n _conda_install python=$TRAVIS_PYTHON_VERSION numpy=$NUMPY_VERSIO
 source activate _conda_install
 conda install --file=requirements.txt
 python setup.py develop
-cd scripts && ./test-installed-landlab.py
+cd scripts && ./test-installed-landlab.py || exit 1
 source deactivate
 conda remove -n _conda_install --all
