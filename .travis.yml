@@ -18,6 +18,9 @@ jobs:
   include:
     - &test-install
       stage: "Test install"
+      os:
+      - linux
+      - osx
       env:
       - TRAVIS_PYTHON_VERSION="2.7"
       before_install: skip
