@@ -16,24 +16,14 @@ os:
 sudo: false
 jobs:
   include:
-    - stage: "Run unit tests"
+    - stage: "Deploy"
       script:
-      - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
-      - conda install -q landlab --use-local
-      - |
-        if [[ "$BUILD_DOCS" == "1" ]]; then
-          (cd docs && make html 2> /dev/null)
-        fi
-      - bash .ci/travis/run_travis_test.sh || exit 1
-      - if [[ "$COVERALLS" == "1" ]]; then coveralls; fi
-    - stage: "Deploy to Anaconda Cloud"
-      script: bash .ci/travis/deploy_to_pypi.sh
-    - stage: "Deploy to PyPI"
-      script: bash .ci/travis/deploy_to_anaconda.sh
-    - stage: "Test conda install"
-      script: bash ./.ci/travis/test-conda-install.sh
-    - stage: "Test pip install"
-      script: bash ./.ci/travis/test-pip-install.sh
+        - bash .ci/travis/deploy_to_pypi.sh
+        - bash .ci/travis/deploy_to_anaconda.sh
+    - stage: "Test install"
+      script:
+        - bash ./.ci/travis/test-conda-install.sh
+        - bash ./.ci/travis/test-pip-install.sh
 
 before_install:
 - |
@@ -65,14 +55,14 @@ install:
 - conda install -q conda-build anaconda-client coverage sphinx
 - pip install coveralls
 - conda info -a && conda list
-# script:
-# - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
-# - conda install -q landlab --use-local
-# - |
-#   if [[ "$BUILD_DOCS" == "1" ]]; then
-#     (cd docs && make html 2> /dev/null)
-#   fi
-# - bash .ci/travis/run_travis_test.sh || exit 1
+script:
+- conda build -q .conda-recipe --numpy=$NUMPY_VERSION
+- conda install -q landlab --use-local
+- |
+  if [[ "$BUILD_DOCS" == "1" ]]; then
+    (cd docs && make html 2> /dev/null)
+  fi
+- bash .ci/travis/run_travis_test.sh || exit 1
 # - bash ./.ci/travis/test-conda-install.sh || exit 1
 # - bash ./.ci/travis/test-pip-install.sh || exit 1
 virtualenv:
