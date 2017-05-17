@@ -9,7 +9,7 @@ if [[ "$TRAVIS_TAG" == v* ]]; then
     python setup.py bdist_wheel
   fi
   echo "Uploading to PyPI."
-  twine upload -u mcflugen -p$PYPI_PASS dist/*
+  twine upload -u mcflugen -p$PYPI_PASS dist/* || exit -1
   echo "Done."
 else
   echo "Not deploying."

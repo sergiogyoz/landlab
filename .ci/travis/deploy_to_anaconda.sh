@@ -5,6 +5,6 @@ else
 fi
 
 echo "Uploading to $CHANNEL"
-anaconda -t $ANACONDA_TOKEN upload --force --user landlab --channel $CHANNEL $HOME/miniconda/conda-bld/**/landlab*bz2
+anaconda -t $ANACONDA_TOKEN upload --force --user landlab --channel $CHANNEL $HOME/miniconda/conda-bld/**/landlab*bz2 || exit -1
 
 echo "Done."
