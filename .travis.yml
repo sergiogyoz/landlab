@@ -18,20 +18,44 @@ jobs:
   include:
     - &test-install
       stage: "Test install"
+      env:
+      - TRAVIS_PYTHON_VERSION="2.7"
       before_install: skip
-      install: skip
-      script: bash ./.ci/travis/test-conda-install.sh 2.7
+      install:
+        - |
+          if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+            OS="MacOSX-x86_64"
+          else
+            OS="Linux-x86_64"
+          fi
+        - curl $MINICONDA_URL_BASE-$OS.sh > $HOME/minconda.sh
+        - bash $HOME/minconda.sh -b -p $CONDA_PREFIX
+        - export PATH="$CONDA_PREFIX/bin:$PATH"
+        - hash -r
+        - conda config --set always_yes yes --set changeps1 no
+        - conda install python=$TRAVIS_PYTHON_VERSION
+      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
       after_success: skip
     - <<: *test-install
-      script: bash ./.ci/travis/test-conda-install.sh 3.5
+      env:
+      - TRAVIS_PYTHON_VERSION="3.5"
+      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
     - <<: *test-install
-      script: bash ./.ci/travis/test-conda-install.sh 3.6
+      env:
+      - TRAVIS_PYTHON_VERSION="3.6"
+      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
     - <<: *test-install
-      script: bash ./.ci/travis/test-pip-install.sh 2.7
+      env:
+      - TRAVIS_PYTHON_VERSION="2.7"
+      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
     - <<: *test-install
-      script: bash ./.ci/travis/test-pip-install.sh 3.5
+      env:
+      - TRAVIS_PYTHON_VERSION="3.5"
+      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
     - <<: *test-install
-      script: bash ./.ci/travis/test-pip-install.sh 3.6
+      env:
+      - TRAVIS_PYTHON_VERSION="3.6"
+      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
 
 before_install:
 - |
