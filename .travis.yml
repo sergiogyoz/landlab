@@ -16,18 +16,22 @@ os:
 sudo: false
 jobs:
   include:
-    - stage: "Test install"
-      env:
-        matrix:
-        - TRAVIS_PYTHON_VERSION="2.7" NUMPY_VERSION="1.11" BUILD_DOCS=0 COVERALLS=0
-        - TRAVIS_PYTHON_VERSION="3.5" NUMPY_VERSION="1.11" BUILD_DOCS=0 COVERALLS=0
-        - TRAVIS_PYTHON_VERSION="3.6" NUMPY_VERSION="1.11" BUILD_DOCS=0 COVERALLS=0
+    - &test-install
+      stage: "Test install"
       before_install: skip
       install: skip
-      script:
-        - bash ./.ci/travis/test-conda-install.sh
-        - bash ./.ci/travis/test-pip-install.sh
+      script: bash ./.ci/travis/test-conda-install.sh 2.7
       after_success: skip
+    - <<: *test-install
+      script: bash ./.ci/travis/test-conda-install.sh 3.5
+    - <<: *test-install
+      script: bash ./.ci/travis/test-conda-install.sh 3.6
+    - <<: *test-install
+      script: bash ./.ci/travis/test-pip-install.sh 2.7
+    - <<: *test-install
+      script: bash ./.ci/travis/test-pip-install.sh 3.5
+    - <<: *test-install
+      script: bash ./.ci/travis/test-pip-install.sh 3.6
 
 before_install:
 - |
