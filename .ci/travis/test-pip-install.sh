@@ -19,7 +19,7 @@ fi
 
 mkdir -p _testing
 cd _testing
-pip install numpy
+pip install -r requirements.txt
 pip install landlab
 $PYTHON -c 'import landlab; landlab.test()' || exit -1
 
