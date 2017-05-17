@@ -14,6 +14,27 @@ os:
 - linux
 - osx
 sudo: false
+jobs:
+  include:
+    - stage: "Run unit tests"
+      script:
+      - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
+      - conda install -q landlab --use-local
+      - |
+        if [[ "$BUILD_DOCS" == "1" ]]; then
+          (cd docs && make html 2> /dev/null)
+        fi
+      - bash .ci/travis/run_travis_test.sh || exit 1
+      - if [[ "$COVERALLS" == "1" ]]; then coveralls; fi
+    - stage: "Deploy to Anaconda Cloud"
+      script: bash .ci/travis/deploy_to_pypi.sh
+    - stage: "Deploy to PyPI"
+      script: bash .ci/travis/deploy_to_anaconda.sh
+    - stage: "Test conda install"
+      script: bash ./.ci/travis/test-conda-install.sh
+    - stage: "Test pip install"
+      script: bash ./.ci/travis/test-pip-install.sh
+
 before_install:
 - |
   if [[ $TRAVIS_OS_NAME == "osx" ]]; then
@@ -44,32 +65,32 @@ install:
 - conda install -q conda-build anaconda-client coverage sphinx
 - pip install coveralls
 - conda info -a && conda list
-script:
-- conda build -q .conda-recipe --numpy=$NUMPY_VERSION
-- conda install -q landlab --use-local
-- |
-  if [[ "$BUILD_DOCS" == "1" ]]; then
-    (cd docs && make html 2> /dev/null)
-  fi
-- bash .ci/travis/run_travis_test.sh || exit 1
-- bash ./.ci/travis/test-conda-install.sh || exit 1
-- bash ./.ci/travis/test-pip-install.sh || exit 1
+# script:
+# - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
+# - conda install -q landlab --use-local
+# - |
+#   if [[ "$BUILD_DOCS" == "1" ]]; then
+#     (cd docs && make html 2> /dev/null)
+#   fi
+# - bash .ci/travis/run_travis_test.sh || exit 1
+# - bash ./.ci/travis/test-conda-install.sh || exit 1
+# - bash ./.ci/travis/test-pip-install.sh || exit 1
 virtualenv:
   system_site_packages: false
-after_success:
-  - bash .ci/travis/deploy_to_pypi.sh
-  - bash .ci/travis/deploy_to_anaconda.sh
-  - if [[ "$COVERALLS" == "1" ]]; then coveralls; fi
-deploy:
-  provider: pypi
-  user: mcflugen
-  password:
-    secure: V15DceMv4DUmjgxToaxrP3KaQxsLbfrTkB1s6D8YNQZvYJiVvNlBpC1nF8yWbOt3IWJQSGjaQEnObd2ZhHe2Kq/H+QsEFyBKlYF7SNp35FyS5zLuf2qhnNhmzhqkspwBpiGe88c1PQPFzfqdIUQXp7ZAv6L8YRvNy2sbzvgxh6I=
-  on:
-    tags: true
-    branch: release
-    repo: landlab/landlab
-  distributions: sdist bdist_wheel
+# after_success:
+#   - bash .ci/travis/deploy_to_pypi.sh
+#   - bash .ci/travis/deploy_to_anaconda.sh
+#   - if [[ "$COVERALLS" == "1" ]]; then coveralls; fi
+# deploy:
+#   provider: pypi
+#   user: mcflugen
+#   password:
+#     secure: V15DceMv4DUmjgxToaxrP3KaQxsLbfrTkB1s6D8YNQZvYJiVvNlBpC1nF8yWbOt3IWJQSGjaQEnObd2ZhHe2Kq/H+QsEFyBKlYF7SNp35FyS5zLuf2qhnNhmzhqkspwBpiGe88c1PQPFzfqdIUQXp7ZAv6L8YRvNy2sbzvgxh6I=
+#   on:
+#     tags: true
+#     branch: release
+#     repo: landlab/landlab
+#   distributions: sdist bdist_wheel
 notifications:
   slack:
     secure: gRKbqjPgp0ZcFtecHOwjLAFbzzBr2zyFrxk7OAS/cea/9U8bLQNA0jZs3ZHtAgR53gdnFlx/GI10d/KD9XMKU55gQkO4FSvfYMK7Xzs2tfnEa5flTqQKRfjB1oJ2fmb81yshUe+xKsXBoedP7SPYv2mutMOY8srKwUcuE0yGmAw=
