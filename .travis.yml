@@ -20,33 +20,20 @@ jobs:
       stage: "Test installation"
       os: linux
       env:
-      - TRAVIS_PYTHON_VERSION="2.7"
       - INSTALLER=conda
-      script: bash ./.ci/travis/test-$INSTALLER-install.sh $TRAVIS_PYTHON_VERSION
+      script: bash ./.ci/travis/test-$INSTALLER-install.sh 2.7 3.5 3.6
       after_success: skip
     - <<: *test-install
-      env:
-      - TRAVIS_PYTHON_VERSION="2.7"
-      - INSTALLER=pip
-    - <<: *test-install
       os: linux
       env:
-      - TRAVIS_PYTHON_VERSION="3.5"
+      - INSTALLER=pip
+    - <<: *test-install
+      os: osx
+      env:
       - INSTALLER=conda
     - <<: *test-install
       os: osx
       env:
-      - TRAVIS_PYTHON_VERSION="3.5"
-      - INSTALLER=pip
-    - <<: *test-install
-      os: linux
-      env:
-      - TRAVIS_PYTHON_VERSION="3.6"
-      - INSTALLER=conda
-    - <<: *test-install
-      os: osx
-      env:
-      - TRAVIS_PYTHON_VERSION="3.6"
       - INSTALLER=pip
 
 before_install:
