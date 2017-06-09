@@ -17,34 +17,37 @@ sudo: false
 jobs:
   include:
     - &test-install
-      stage: "Test install"
-      os:
-      - linux
-      - osx
+      stage: "Test installation"
+      os: linux
       env:
       - TRAVIS_PYTHON_VERSION="2.7"
-      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
+      - INSTALLER=conda
+      script: bash ./.ci/travis/test-$INSTALLER-install.sh $TRAVIS_PYTHON_VERSION
       after_success: skip
     - <<: *test-install
       env:
-      - TRAVIS_PYTHON_VERSION="3.5"
-      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
-    - <<: *test-install
-      env:
-      - TRAVIS_PYTHON_VERSION="3.6"
-      script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
-    - <<: *test-install
-      env:
       - TRAVIS_PYTHON_VERSION="2.7"
-      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
+      - INSTALLER=pip
     - <<: *test-install
+      os: linux
       env:
       - TRAVIS_PYTHON_VERSION="3.5"
-      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
+      - INSTALLER=conda
     - <<: *test-install
+      os: osx
+      env:
+      - TRAVIS_PYTHON_VERSION="3.5"
+      - INSTALLER=pip
+    - <<: *test-install
+      os: linux
       env:
       - TRAVIS_PYTHON_VERSION="3.6"
-      script: bash ./.ci/travis/test-pip-install.sh $TRAVIS_PYTHON_VERSION
+      - INSTALLER=conda
+    - <<: *test-install
+      os: osx
+      env:
+      - TRAVIS_PYTHON_VERSION="3.6"
+      - INSTALLER=pip
 
 before_install:
 - |
