@@ -23,20 +23,6 @@ jobs:
       - osx
       env:
       - TRAVIS_PYTHON_VERSION="2.7"
-      before_install: skip
-      install:
-        - |
-          if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            OS="MacOSX-x86_64"
-          else
-            OS="Linux-x86_64"
-          fi
-        - curl $MINICONDA_URL_BASE-$OS.sh > $HOME/minconda.sh
-        - bash $HOME/minconda.sh -b -p $CONDA_PREFIX
-        - export PATH="$CONDA_PREFIX/bin:$PATH"
-        - hash -r
-        - conda config --set always_yes yes --set changeps1 no
-        - conda install python=$TRAVIS_PYTHON_VERSION
       script: bash ./.ci/travis/test-conda-install.sh $TRAVIS_PYTHON_VERSION
       after_success: skip
     - <<: *test-install
