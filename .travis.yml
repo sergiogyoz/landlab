@@ -16,6 +16,13 @@ os:
 sudo: false
 jobs:
   include:
+    - stage: Build docs
+      os: linux
+      env:
+      - TRAVIS_PYTHON_VERSION="2.7"
+      before_install: skip
+      script: (cd docs && make html 2> /dev/null)
+      after_success: skip
     - &test-install
       stage: "Test installation"
       os: linux
@@ -69,10 +76,10 @@ install:
 script:
 - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
 - conda install -q landlab --use-local
-- |
-  if [[ "$BUILD_DOCS" == "1" ]]; then
-    (cd docs && make html 2> /dev/null)
-  fi
+# - |
+#   if [[ "$BUILD_DOCS" == "1" ]]; then
+#     (cd docs && make html 2> /dev/null)
+#   fi
 - bash .ci/travis/run_travis_test.sh || exit 1
 # - bash ./.ci/travis/test-conda-install.sh || exit 1
 # - bash ./.ci/travis/test-pip-install.sh || exit 1
