@@ -27,6 +27,7 @@ jobs:
       stage: "Test installation"
       os: linux
       env:
+      - TRAVIS_PYTHON_VERSION="2.7"
       - INSTALLER=conda
       script: bash ./.ci/travis/test-$INSTALLER-install.sh 2.7 3.5 3.6
       after_success: skip
