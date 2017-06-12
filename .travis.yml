@@ -18,8 +18,6 @@ jobs:
   include:
     - stage: Build docs
       os: linux
-      env:
-      - TRAVIS_PYTHON_VERSION="2.7"
       before_install: skip
       script:
       - conda install -q sphinx
@@ -29,7 +27,6 @@ jobs:
       stage: "Test installation"
       os: linux
       env:
-      - TRAVIS_PYTHON_VERSION="2.7"
       - INSTALLER=conda
       script: bash ./.ci/travis/test-$INSTALLER-install.sh 2.7 3.5 3.6
       after_success: skip
@@ -72,9 +69,9 @@ install:
 - export PATH="$CONDA_PREFIX/bin:$PATH"
 - hash -r
 - conda config --set always_yes yes --set changeps1 no
-- conda install python=$TRAVIS_PYTHON_VERSION
 - conda info -a && conda list
 script:
+- conda install python=$TRAVIS_PYTHON_VERSION
 - conda install -q conda-build anaconda-client coverage
 - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
 - conda install -q landlab --use-local
