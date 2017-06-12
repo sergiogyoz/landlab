@@ -21,7 +21,7 @@ jobs:
       before_install: skip
       script:
       - conda install -q --file=requirements-docs.txt
-      - (cd docs && make html 2> /dev/null)
+      - (cd docs && make html)
       after_success: skip
     - &test-install
       stage: "Test installation"
