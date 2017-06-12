@@ -20,7 +20,7 @@ jobs:
       os: linux
       before_install: skip
       script:
-      - conda install -q sphinx
+      - conda install -q --file=requirements-docs.txt
       - (cd docs && make html 2> /dev/null)
       after_success: skip
     - &test-install
