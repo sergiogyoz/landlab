@@ -21,7 +21,9 @@ jobs:
       env:
       - TRAVIS_PYTHON_VERSION="2.7"
       before_install: skip
-      script: (cd docs && make html 2> /dev/null)
+      script:
+      - conda install sphinx
+      - (cd docs && make html 2> /dev/null)
       after_success: skip
     - &test-install
       stage: "Test installation"
@@ -71,7 +73,7 @@ install:
 - hash -r
 - conda config --set always_yes yes --set changeps1 no
 - conda install python=$TRAVIS_PYTHON_VERSION
-- conda install -q conda-build anaconda-client coverage sphinx
+- conda install -q conda-build anaconda-client coverage
 - pip install coveralls
 - conda info -a && conda list
 script:
