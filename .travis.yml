@@ -22,7 +22,7 @@ jobs:
       - TRAVIS_PYTHON_VERSION="2.7"
       before_install: skip
       script:
-      - conda install sphinx
+      - conda install -q sphinx
       - (cd docs && make html 2> /dev/null)
       after_success: skip
     - &test-install
@@ -73,9 +73,9 @@ install:
 - hash -r
 - conda config --set always_yes yes --set changeps1 no
 - conda install python=$TRAVIS_PYTHON_VERSION
-- conda install -q conda-build anaconda-client coverage
 - conda info -a && conda list
 script:
+- conda install -q conda-build anaconda-client coverage
 - conda build -q .conda-recipe --numpy=$NUMPY_VERSION
 - conda install -q landlab --use-local
 # - |
@@ -93,7 +93,7 @@ after_success:
   - |
     if [[ "$COVERALLS" == "1" ]]; then
       pip install coveralls
-      coveralls;
+      coveralls
     fi
 # deploy:
 #   provider: pypi
