@@ -20,7 +20,7 @@ requirements:
     - six
     - pyyaml
     - setuptools
-    - jpeg <=8 # [osx and np==111]
+    - jpeg <=8 # [osx]
 
   run:
     - python
@@ -37,7 +37,7 @@ requirements:
     - pyyaml
     - setuptools
     - xarray
-    - jpeg <=8 # [osx and np==111]
+    - jpeg <=8 # [osx]
 
 build:
   string: {{ environ.get('BUILD_STR', '') }}
