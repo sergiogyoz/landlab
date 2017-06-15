@@ -22,11 +22,13 @@ jobs:
   include:
     - stage: Build docs
       os: linux
+      env:
+      - DOCS_TARGETS="html"
       before_install: skip
       script:
       - conda install -q --file=requirements-docs.txt
       - python setup.py develop
-      - (cd docs && make html)
+      - (cd docs && make $DOCS_TARGETS)
       after_success: skip
     - &test-install
       stage: "Test installation"
