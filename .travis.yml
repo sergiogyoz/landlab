@@ -25,6 +25,7 @@ jobs:
       before_install: skip
       script:
       - conda install -q --file=requirements-docs.txt
+      - python setup.py develop
       - (cd docs && make html)
       after_success: skip
     - &test-install
