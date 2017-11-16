@@ -441,7 +441,7 @@ class ModelDataFields(object):
 
         LLCATS: FIELDCR
         """
-        if group=='grid':
+        if group == 'grid':
             raise ValueError("empty is not supported for at='grid', if you "
                              "want to create a field at the grid, use\n"
                              "grid.at_grid['value_name']=value\n"
@@ -816,6 +816,16 @@ class ModelDataFields(object):
             raise ValueError('missing group name')
         
         return self[group].add_field(name, value_array, **kwds)
+
+    def add_fields(self, **kwds):
+        groups = [kwd[3:] for kwd in kwds if kwd.startswith('at_')]
+        for group in groups:
+            for name, value in dict(kwds['at_' + group]).items():
+                if group != 'grid':
+                    self.add_empty(name, at=group)
+                    self[group][name][:] = value
+                else:
+                    self[group][name] = value
 
     def set_units(self, group, name, units):
         """Set the units for a field of values.
