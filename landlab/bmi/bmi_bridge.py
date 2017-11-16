@@ -13,6 +13,7 @@ exposes a Basic Modelling Interface.
 
 """
 import os
+import re
 
 import numpy as np
 import yaml
@@ -21,6 +22,12 @@ from ..core.model_component import Component
 from ..grid import RasterModelGrid
 
 __all__ = ['TimeStepper', 'wrap_as_bmi']
+
+
+
+def camel_to_snake(name):
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
 class TimeStepper(object):
@@ -99,9 +106,11 @@ class TimeStepper(object):
         """Change the time step."""
         self._step = new_val
 
-    def advance(self):
+    def advance(self, step=None):
         """Advance the time stepper by one time step."""
-        self._time += self.step
+        if step is None:
+            step = self.step
+        self._time += step
         if self._stop is not None and self._time > self._stop:
             raise StopIteration()
 
@@ -211,7 +220,7 @@ def wrap_as_bmi(cls):
 
         def get_time_units(self):
             """Time units used by the component."""
-            raise NotImplementedError('get_time_units not implemented')
+            return self._base._time_units
 
         def initialize(self, fname):
             """Initialize the component from a file.
@@ -254,18 +263,27 @@ def wrap_as_bmi(cls):
             else:
                 raise ValueError(
                     'unrecognized grid type {gtype}'.format(gtype=gtype))
-
-            grid = cls.from_dict(grid_params)
+            try:
+                filepath = grid_params.pop('from_file')
+            except KeyError:
+                grid = cls.from_dict(grid_params)
+            else:
+                grid = cls.from_file(filepath, **grid_params)
 
             clock_params = params.pop('clock')
             self._clock = TimeStepper(**clock_params)
 
-            self._base = self._cls(grid, **params)
+            component_kwds = params.get(camel_to_snake(self._cls.__name__),
+                                        {})
+            self._base = self._cls(grid, **component_kwds)
+            # self._base = self._cls(grid, **params)
 
         def update(self):
             """Update the component one time step."""
-            if hasattr(self._base, 'update'):
-                self._base.update()
+            # if hasattr(self._base, 'update'):
+            #     self._base.update()
+            if hasattr(self._base, 'run_one_step'):
+                self._base.run_one_step()
             self._clock.advance()
 
         def update_frac(self, frac):
@@ -277,10 +295,15 @@ def wrap_as_bmi(cls):
 
         def update_until(self, then):
             """Update the component until a given time."""
-            n_steps = (then - self.get_current_time()) / self.get_time_step()
-            for _ in range(int(n_steps)):
-                self.update()
-            self.update_frac(n_steps - int(n_steps))
+            dt = then - self.get_current_time()
+            self._base.run_one_step(dt=dt)
+            self._clock.step = dt
+            self._clock.advance()
+
+            # n_steps = (then - self.get_current_time()) / self.get_time_step()
+            # for _ in range(int(n_steps)):
+            #     self.update()
+            # self.update_frac(n_steps - int(n_steps))
 
         def finalize(self):
             """Clean-up the component."""
@@ -290,17 +313,29 @@ def wrap_as_bmi(cls):
             """Get the grid id for a variable."""
             return 0
 
+        def get_var_location(self, name):
+            """Get the grid element that a variable is defined on."""
+            loc = self._base._var_mapping[name]
+            if loc == 'node':
+                return 'node'
+            elif loc == 'link':
+                return 'edge'
+            elif loc == 'patch':
+                return 'face'
+            else:
+                raise ValueError('unknown grid location')
+
         def get_var_itemsize(self, name):
             """Get the size of elements of a variable."""
-            return np.dtype('float').itemsize
+            return self.get_value_ref(name).itemsize
 
         def get_var_nbytes(self, name):
             """Get the total number of bytes used by a variable."""
-            return self.get_itemsize(name) * self._base.grid.number_of_nodes
+            return self.get_value_ref(name).nbytes
 
         def get_var_type(self, name):
             """Get the data type for a variable."""
-            return str(np.dtype('float'))
+            return str(self.get_value_ref(name).dtype)
 
         def get_var_units(self, name):
             """Get the unit used by a variable."""
@@ -308,19 +343,21 @@ def wrap_as_bmi(cls):
 
         def get_value_ref(self, name):
             """Get a reference to a variable's data."""
-            return self._base.grid.at_node[name]
+            loc =  self._base._var_mapping[name]
+            return self._base.grid[loc][name]
 
         def get_value(self, name):
             """Get a copy of a variable's data."""
-            return self._base.grid.at_node[name].copy()
+            return self.get_value_ref(name).copy()
 
         def set_value(self, name, vals):
             """Set the values of a variable."""
             if name in self.get_input_var_names():
-                if name in self._base.grid.at_node:
-                    self._base.grid.at_node[name][:] = vals.flat
+                loc =  self._base._var_mapping[name]
+                if name in self._base.grid[loc]:
+                    self._base.grid[loc][name][:] = vals.flat
                 else:
-                    self._base.grid.at_node[name] = vals
+                    self._base.grid[loc][name] = vals
             else:
                 raise KeyError('{name} is not an input item'.format(name=name))
 
@@ -331,6 +368,10 @@ def wrap_as_bmi(cls):
         def get_grid_rank(self, gid):
             """Get the number of dimensions of a grid."""
             return 2
+
+        def get_grid_size(self, gid):
+            """Get the number of elements of a grid."""
+            return self._base.grid.number_of_nodes
 
         def get_grid_shape(self, gid):
             """Get the shape of a structured grid."""
@@ -344,6 +385,26 @@ def wrap_as_bmi(cls):
         def get_grid_type(self, gid):
             """Get the type of grid."""
             return 'uniform_rectilinear'
+
+        def get_grid_number_of_nodes(self, gid):
+            return self._base.grid.number_of_nodes
+
+        def get_grid_number_of_edges(self, gid):
+            return self._base.grid.number_of_links
+
+        def get_grid_number_of_faces(self, gid):
+            return self._base.grid.number_of_patches
+
+        def get_grid_nodes_at_edge(self, gid):
+            return np.hstack(
+                (grid.node_at_link_tail.reshape((-1, 1)),
+                 grid.node_at_link_head.reshape((-1, 1))))
+
+        def get_grid_edges_at_face(self, gid):
+            return self._base.grid.links_at_patch.reshape((-1, ))
+
+        def get_grid_max_edges_at_face(self, gid):
+            return self._base.grid.links_per_patch.shape[1]
 
 
     BmiWrapper.__name__ = cls.__name__
