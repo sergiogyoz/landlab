@@ -7,6 +7,7 @@ Do NOT add new documentation here. Grid documentation is now built in a semi-
 automated fashion. To modify the text seen on the web, edit the files
 `docs/text_for_[gridfile].py.txt`.
 """
+import os
 
 import numpy as np
 import six
@@ -24,8 +25,8 @@ from .base import (CORE_NODE, FIXED_VALUE_BOUNDARY,
 from landlab.field.scalar_data_fields import FieldError
 from landlab.utils.decorators import make_return_array_immutable, deprecated
 from . import raster_funcs as rfuncs
-from ..io import write_esri_ascii
-from ..io.netcdf import write_netcdf
+from ..io import write_esri_ascii, read_esri_ascii
+from ..io.netcdf import write_netcdf, read_netcdf
 from landlab.grid.structured_quad import links as squad_links
 from landlab.grid.structured_quad import faces as squad_faces
 from landlab.grid.structured_quad import cells as squad_cells
@@ -543,6 +544,27 @@ class RasterModelGrid(ModelGrid, RasterModelGridPlotter):
         bc = params.get('bc', {})
 
         return cls(shape, spacing=spacing, bc=bc)
+
+    @classmethod
+    def from_file(cls, filepath, bc=None, status_at_node=()):
+        bc = bc or {}
+
+        _, ext = os.path.splitext(filepath)
+        if ext == '.asc':
+            grid, _ = read_esri_ascii(filepath,
+                                      name='topographic__elevation')
+        elif ext == '.nc':
+            grid = read_netcdf(filepath)
+        else:
+            raise ValueError('unknown file extension')
+
+        grid.set_closed_boundaries_at_grid_edges(
+            *grid_edge_is_closed_from_dict(bc))
+
+        for node, status in status_at_node:
+            grid.status_at_node[node] = status
+
+        return grid
 
     def _initialize(self, num_rows, num_cols, spacing):
         """Set up a raster grid.
