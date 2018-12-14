@@ -1,16 +1,3 @@
-"""
-Examples
---------
->>> from landlab.graph.voronoi.voronoi_to_graph import VoronoiToGraph
->>> from scipy.spatial import Voronoi
->>> import numpy as np
->>> dx, dy = 1., np.sin(np.pi / 3.)
->>> points = [
-...     [0., 0.], [dx, 0.], [2. * dx, 0.],
-...     [dx * .5, dy], [dx * 1.5, dy], [dx * 2.5, dy],
-...     [0., 2. * dy], [dx, 2. * dy], [2. * dx, 3. * dy]]
->>> voronoi = Voronoi(points)
-"""
 import re
 
 from itertools import combinations
