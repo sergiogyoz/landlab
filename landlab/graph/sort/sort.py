@@ -140,7 +140,7 @@ def reorder_links_at_patch(graph):
     before = graph.links_at_patch.copy()
     area_before = get_area_of_patch(graph)
 
-    negative_areas = as_id_array(np.where(get_area_of_patch(graph) < 0.)[0])
+    negative_areas = as_id_array(np.where(get_area_of_patch(graph) < 0.0)[0])
     reverse_element_order(graph.links_at_patch, negative_areas)
     # reverse_element_order(graph._links_at_patch, negative_areas)
 
@@ -148,7 +148,7 @@ def reorder_links_at_patch(graph):
     if "nodes_at_patch" in graph._ds:
         graph._ds = graph._ds.drop("nodes_at_patch")
 
-    if np.any(get_area_of_patch(graph) < 0.):
+    if np.any(get_area_of_patch(graph) < 0.0):
         raise ValueError(
             (graph.links_at_patch, before, get_area_of_patch(graph), area_before)
         )
@@ -161,7 +161,7 @@ def reorient_link_dirs(graph):
         return
 
     angles = get_angle_of_link(graph)
-    links_to_swap = (angles < 7. * np.pi / 4.) & (angles > np.pi * .75)
+    links_to_swap = (angles < 7.0 * np.pi / 4.0) & (angles > np.pi * 0.75)
     graph.nodes_at_link[links_to_swap, :] = graph.nodes_at_link[links_to_swap, ::-1]
 
 
@@ -629,7 +629,7 @@ def calc_angle_of_spoke(graph, spoke=None, at="node", badval=None):
     dy = (y_of_spoke.T - y_of_hub).T
 
     angle_of_spoke = np.arctan2(dy, dx)
-    angle_of_spoke[angle_of_spoke < 0.] += np.pi * 2.
+    angle_of_spoke[angle_of_spoke < 0.0] += np.pi * 2.0
 
     if badval is not None:
         try:
@@ -641,3 +641,109 @@ def calc_angle_of_spoke(graph, spoke=None, at="node", badval=None):
                 angle_of_spoke[spokes_at_hub[:, col] == -1, col] = val
 
     return angle_of_spoke
+
+
+def map_sorted_pairs(src_pairs, src_values, pairs, out=None, sorter=None):
+    """Map pairs of integers to values.
+
+    Create a map of pairs to integers to single integer values.
+
+    Parameters
+    ----------
+    src_pairs : ndarray of int, shape (N, 2)
+        Integer pairs.
+    src_values : ndarray if int, shape (N, )
+        Integer values associated with the source pairs.
+    pairs : ndarray of int, shape (M, 2)
+        Integer pairs to obtain the values of.
+    out : ndarray of int, shape (M, ), optional
+        If provided, an array to place values into. If not provided,
+        a new array will be created.
+    sorter : ndarray of int, shape (N, )
+        Sort source arrays into ascending order, typically the
+        result of argsort.
+
+    Returns
+    -------
+    ndarray of int, shape (M, )
+        The values of the provided pairs, -1 where the pairs are not
+        present in *src_pairs*.
+    """
+    from .ext.sparse import map_pairs_to_values as _map_pairs_to_values
+
+    if sorter is not None:
+        src_pairs = src_pairs[sorter]
+        src_values = src_values[sorter]
+
+    if out is None:
+        out = np.empty(len(pairs), dtype=np.int)
+
+    _map_pairs_to_values(src_pairs, src_values, pairs, out)
+
+    return out
+
+
+def map_sorted_rolling_pairs(src_pairs, src_values, pairs, out=None, sorter=None):
+    from .ext.sparse import (
+        map_rolling_pairs_to_values as _map_rolling_pairs_to_values,
+    )
+
+    if sorter is not None:
+        src_pairs = src_pairs[sorter]
+        src_values = src_values[sorter]
+
+    if out is None:
+        out = np.empty_like(pairs, dtype=np.int)
+
+    _map_rolling_pairs_to_values(
+        np.ascontiguousarray(src_pairs),
+        np.ascontiguousarray(src_values),
+        np.ascontiguousarray(pairs),
+        out,
+    )
+
+    return out
+
+
+def pair_isin_sorted_list(src_pairs, pairs, out=None, sorter=None):
+    """Check if an integer pair is contained in a list.
+
+    Parameters
+    ----------
+    src_pairs : ndarray of int, shape (N, 2)
+        Integer pairs.
+    pairs : ndarray of int, shape (M, 2)
+        Check if these pairs are contained in the source list.
+    out : ndarray of bool, shape (M, ), optional
+        If provided, an array indicating if each pair is contained in the
+        source list. If not provided, allocate a new array.
+    sorter : ndarray of int, shape (N, )
+        Sort source arrays into ascending order, typically the
+        result of argsort.
+
+    Returns
+    -------
+    ndarray of int, shape (M, )
+        Array indicating if each pair is contained in the source list.
+
+    Examples
+    --------
+    >>> from landlab.graph.sort.sort import pair_isin_sorted_list
+    >>> pair_isin_sorted_list([[0, 1], [2, 3]], [[0, 1], [1, 0], [99, 99]])
+    array([ True,  True, False], dtype=bool)
+    """
+    from .ext.sparse import pair_isin_sorted_list as _pair_isin_sorted_list
+
+    if sorter is not None:
+        src_pairs = src_pairs[sorter]
+
+    if out is None:
+        out = np.empty(len(pairs), dtype=bool)
+
+    _pair_isin_sorted_list(
+        np.ascontiguousarray(src_pairs),
+        np.ascontiguousarray(pairs),
+        out.view(dtype=np.uint8),
+    )
+
+    return out
