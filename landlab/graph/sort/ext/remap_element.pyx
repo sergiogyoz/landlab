@@ -14,6 +14,7 @@ from .argsort cimport argsort_int
 
 DTYPE = np.int
 ctypedef np.int_t DTYPE_t
+ctypedef np.uint8_t uint8
 
 
 @cython.boundscheck(False)
@@ -175,15 +176,8 @@ cdef _argsort_links(long * links, int n_links, long * nodes, long * ordered):
 
         i = 0
         for link in range(n_links):
-            print index[i]
-            # if nodes[index[i]] != nodes[index[i + 1]]:
-            #     raise ValueError('open patch')
-
             ordered[i / 2] = index[i] / 2
             i += 2
-
-            # if nodes[index[i]] == nodes[index[i - 1]]:
-            #     raise ValueError('triple-point')
     finally:
         free(index)
 
