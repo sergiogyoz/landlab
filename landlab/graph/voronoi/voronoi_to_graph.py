@@ -21,6 +21,7 @@ from scipy.spatial import Delaunay, Voronoi
 
 from ...utils import jaggedarray
 from ..sort.sort import reverse_one_to_one
+from .voronoi import id_array_contains
 
 
 class VoronoiDelaunay(object):
@@ -184,15 +185,12 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         return np.any(self.corners_at_face == -1, axis=1)
 
     def is_perimeter_cell(self):
-        from .ext.voronoi import id_array_is_valid
-
-        is_a_cell = np.full(len(self.n_corners_at_cell), True, dtype=bool)
-        id_array_is_valid(
-            self.corners_at_cell, self.n_corners_at_cell, is_a_cell.view(dtype=np.uint8)
+        is_not_a_cell = id_array_contains(
+            self.corners_at_cell, self.n_corners_at_cell, -1
         )
-        is_a_cell &= self.n_corners_at_cell >= 3
+        is_not_a_cell |= self.n_corners_at_cell < 3
 
-        return ~ is_a_cell
+        return is_not_a_cell
 
     def is_perimeter_link(self):
         from ..sort.sort import pair_isin_sorted_list
