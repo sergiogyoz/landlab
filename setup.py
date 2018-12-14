@@ -75,6 +75,7 @@ ext_modules = [
     Extension(
         "landlab.graph.sort.ext.spoke_sort", ["landlab/graph/sort/ext/spoke_sort.pyx"]
     ),
+    Extension("landlab.graph.sort.ext.sparse", ["landlab/graph/sort/ext/sparse.pyx"]),
     Extension(
         "landlab.graph.voronoi.ext.voronoi", ["landlab/graph/voronoi/ext/voronoi.pyx"]
     ),
