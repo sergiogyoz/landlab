@@ -12,6 +12,43 @@ from ..ugrid import (
 )
 
 
+def id_array_contains(jagged_array, sizes, id, out=None):
+    """Check if rows of a jagged array contain some value.
+    Parameters
+    ----------
+    jagged_array : ndarray of int, shape *(M, N)*
+        Matrix of id arrays.
+    sizes : ndarray of int, shape *(M,)*
+        Number of elements in each row.
+    id : int
+        Value to search for.
+    out : ndarray of bool, shape *(M,)*
+        If provided, a buffer to place the result into. If not provided,
+        a new array will be created.
+
+    Returns
+    -------
+    ndarray of bool
+        *True* for rows that contain the value.
+
+    Examples
+    --------
+    >>> from landlab.graph.voronoi.voronoi import id_array_contains
+    >>> id_array_contains([[1, 2, -1], [-1, -1, -1], [-1, -1, -1]], [2, 1, 0], -1)
+    array([False,  True, False], dtype=bool)
+    """
+    from .ext.voronoi import id_array_contains as _id_array_contains
+
+    if out is None:
+        out = np.empty(len(jagged_array), dtype=bool)
+
+    _id_array_contains(
+        np.asarray(jagged_array), np.asarray(sizes), out.view(dtype=np.uint8), id
+    )
+
+    return out
+
+
 def remove_bad_patches(max_node_spacing, nodes_at_patch, neighbors_at_patch):
     from .ext.delaunay import remove_tris
 
