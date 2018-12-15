@@ -12,7 +12,44 @@ from .voronoi import id_array_contains
 
 
 class VoronoiDelaunay(object):
+
+    """Represent a scipy.spatial Voronoi as a landlab graph."""
+
     def __init__(self, xy_of_node):
+        """A Voronoi with landlab-style names.
+
+        Parameters
+        ----------
+        xy_of_node : ndarray of float, shape *(N, 2)*
+            Coordinates of nodes.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> import scipy
+        >>> from landlab.graph.voronoi.voronoi_to_graph import VoronoiDelaunay
+
+        >>> xy_of_node = [
+        ...     [0.0, 0.0], [1.0, 0.0], [2.0, 0.0],
+        ...     [0.5, 1.0], [1.5, 1.0], [2.5, 1.0],
+        ...     [0.0, 2.0], [1.0, 2.0], [2.0, 2.0],
+        ... ]
+        >>> graph = VoronoiDelaunay(xy_of_node)
+        >>> voronoi = scipy.spatial.Voronoi(xy_of_node)
+
+        >>> np.all(graph.x_of_node == voronoi.points[:, 0])
+        True
+        >>> np.all(graph.y_of_node == voronoi.points[:, 1])
+        True
+
+        >>> np.all(graph.x_of_corner == voronoi.vertices[:, 0])
+        True
+        >>> np.all(graph.y_of_corner == voronoi.vertices[:, 1])
+        True
+
+        >>> np.all(graph.corners_at_face == voronoi.ridge_vertices)
+        True
+        """
         delaunay = Delaunay(xy_of_node)
         voronoi = Voronoi(xy_of_node)
 
@@ -75,57 +112,124 @@ class VoronoiDelaunay(object):
 
     @property
     def x_of_node(self):
+        """x-coordinate of nodes."""
         return self._mesh["x_of_node"].values
 
     @property
     def y_of_node(self):
+        """y-coordinate of nodes."""
         return self._mesh["y_of_node"].values
 
     @property
     def x_of_corner(self):
+        """x-coordinate of corners."""
         return self._mesh["x_of_corner"].values
 
     @property
     def y_of_corner(self):
+        """y-coordinate of corners."""
         return self._mesh["y_of_corner"].values
 
     @property
     def nodes_at_patch(self):
+        """Nodes that form a patch."""
         return self._mesh["nodes_at_patch"].values
 
     @property
     def nodes_at_link(self):
+        """Nodes at link ends."""
         return self._mesh["nodes_at_link"].values
 
     @property
     def nodes_at_face(self):
+        """Nodes at either side of a face."""
         return self._mesh["nodes_at_face"].values
 
     @property
     def corners_at_face(self):
+        """corners at face ends."""
         return self._mesh["corners_at_face"].values
 
     @property
     def corners_at_cell(self):
+        """Corners that from a cell."""
         return self._mesh["corners_at_cell"].values
 
     @property
     def n_corners_at_cell(self):
+        """Number of corners forming a cell."""
         return self._mesh["n_corners_at_cell"].values
 
     @property
     def cell_at_node(self):
+        """Cell that surrounds a node."""
         return self._mesh["cell_at_node"].values
 
 
 class VoronoiDelaunayToGraph(VoronoiDelaunay):
     def __init__(self, xy_of_node, perimeter_links=None):
+        """A Voronoi with landlab-style names.
+
+        Parameters
+        ----------
+        xy_of_node : ndarray of float, shape *(N, 2)*
+            Coordinates of nodes.
+        perimeter_links : ndarray of int, shape *(N, 2)*
+            Node pairs of links on the perimeter of the graph.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> import scipy
+        >>> from landlab.graph.voronoi.voronoi_to_graph import VoronoiDelaunay
+
+        >>> xy_of_node = [
+        ...     [0.0, 0.0], [1.0, 0.0], [2.0, 0.0],
+        ...     [0.5, 1.0], [1.5, 1.0], [2.5, 1.0],
+        ...     [0.0, 2.0], [1.0, 2.0], [2.0, 2.0],
+        ... ]
+
+        Create this hex graph::
+
+            6 - 7 - 8
+            |\ / \ / \
+            | 3 - 4 - 5
+            |/ \ / \ /
+            0 - 1 - 2
+
+        >>> graph = VoronoiDelaunayToGraph(xy_of_node)
+        >>> len(graph.nodes_at_patch)
+        9
+        >>> corner = np.argmin(graph.x_of_corner)
+        >>> graph.x_of_corner[corner], graph.y_of_corner[corner]
+        (-0.75, 1.0)
+
+        Create this hex graph::
+
+            6 - 7 - 8
+             \ / \ / \
+              3 - 4 - 5
+             / \ / \ /
+            0 - 1 - 2
+
+        >>> perimeter_links = np.array(
+        ...     [[0, 1], [1, 2], [2, 5], [5, 8], [8, 7], [7, 6], [6, 3], [3, 0]], dtype=int
+        ... )
+        >>> graph = VoronoiDelaunayToGraph(xy_of_node, perimeter_links=perimeter_links)
+        >>> len(graph.nodes_at_patch)
+        8
+
+        >>> graph.node_at_cell
+        array([4])
+        """
         super(VoronoiDelaunayToGraph, self).__init__(xy_of_node)
 
         if perimeter_links is not None:
             self._perimeter_links = np.asarray(perimeter_links, dtype=int).reshape(
                 (-1, 2)
             )
+        else:
+            self._perimeter_links = None
 
         mesh = self._mesh
         mesh.update(
@@ -169,9 +273,29 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         return links_at_patch_
 
     def is_perimeter_face(self):
+        """Identify faces that are on the perimeter.
+
+        A face is on the perimeter if one of it's ends is undefined (has an
+        id of -1).
+
+        Returns
+        -------
+        ndarray of bool, shape *(n_faces,)*
+            *True* where faces are on the perimeter.
+        """
         return np.any(self.corners_at_face == -1, axis=1)
 
     def is_perimeter_cell(self):
+        """Identify cells that are unbound.
+
+        A corner is unbound (or on the perimeter) if one of it's corners
+        is undefined (has an id of -1) or has fewer than three sides.
+
+        Returns
+        -------
+        ndarray of bool, shape *(n_cells,)*
+            *True* where cells are on the perimeter.
+        """
         is_not_a_cell = id_array_contains(
             self.corners_at_cell, self.n_corners_at_cell, -1
         )
@@ -180,6 +304,17 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         return is_not_a_cell
 
     def is_perimeter_link(self):
+        """Identify links that are on the perimeter of the graph.
+
+        If *perimeter_links* was provided when the VoronoiDelaunayToGraph was
+        created, these are the perimeter links. Otherwise, perimeter links
+        are those that cross perimeter faces.
+
+        Returns
+        -------
+        ndarray of bool, shape *(n_links,)*
+            *True* where links are on the perimeter.
+        """
         from ..sort.sort import pair_isin_sorted_list
 
         if self._perimeter_links is not None:
@@ -193,6 +328,15 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         return is_perimeter_link
 
     def unbound_corners(self):
+        """Identify corners that are not contained within the bounds of the graph.
+
+        A corner is unbound if it is only connected to perimeter faces.
+
+        Returns
+        -------
+        ndarray of int
+            Array of corners that are not contained in the graph.
+        """
         faces_to_drop = np.where(
             self.is_perimeter_face()
             & (self.is_perimeter_link() != self.is_perimeter_face())
@@ -202,12 +346,32 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         return unbound_corners[unbound_corners >= 0]
 
     def is_bound_corner(self):
+        """Identify corners that are contained within the bounds of the graph.
+
+        Returns
+        -------
+        ndarray of bool, shape *(n_corners,)*
+            *True* where corners are bound.
+        """
         corners = np.full(self._mesh.dims["corner"], True)
         corners[self.unbound_corners()] = False
 
         return corners
 
     def drop_corners(self, corners):
+        """Drop corners and associated elements for the graph.
+
+        First given corners are dropped from the graph. Once this is done,
+        some links may no longer have any corners on either side of them.
+        Where this is the case, drop those links. Once this is done, there
+        will be some patches that are no longer bound. Where this is the
+        case, drop those patches.
+
+        Parameters
+        ----------
+        corners : array of int
+            Corners to drop from the graph.
+        """
         # Remove the corners
         corners_to_drop = np.asarray(corners, dtype=int)
         self.drop_element(corners_to_drop, at="corner")
@@ -221,12 +385,23 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
         self.drop_element(np.where(~is_a_patch)[0], at="patch")
 
     def drop_perimeter_faces(self):
+        """Drop perimeter faces from a graph."""
         self.drop_element(np.where(self.is_perimeter_face())[0], at="face")
 
     def drop_perimeter_cells(self):
+        """Drop perimeter cells from a graph."""
         self.drop_element(np.where(self.is_perimeter_cell())[0], at="cell")
 
     def drop_element(self, ids, at="node"):
+        """Drop elements, and their associated elements, from a graph.
+
+        Parameters
+        ----------
+        ids : ndarray of int
+            Ids of the elements.
+        at : str, optional
+            Name of the element to drop.
+        """
         dropped_ids = np.asarray(ids, dtype=int)
         dropped_ids.sort()
         is_a_keeper = np.full(self._mesh.dims[at], True)
@@ -271,12 +446,15 @@ class VoronoiDelaunayToGraph(VoronoiDelaunay):
 
     @property
     def links_at_patch(self):
+        """Links that form a patch."""
         return self._mesh["links_at_patch"].values
 
     @property
     def node_at_cell(self):
+        """Node contained by a cell."""
         return self._mesh["node_at_cell"].values
 
     @property
     def faces_at_cell(self):
+        """Faces that form a cell."""
         return self._mesh["faces_at_cell"].values
