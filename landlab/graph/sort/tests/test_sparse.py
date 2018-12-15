@@ -43,10 +43,10 @@ def test_pair_isin_same_as_slow_way():
     ids = np.random.randint(n_src_pairs, size=n_src_pairs // 10)
 
     out = pair_isin_sorted_list(src, src[ids])
-    assert np.all(out == True)
+    assert np.all(out)
 
     out = _slow_way(src, src[ids])
-    assert np.all(out == True)
+    assert np.all(out)
 
 
 def test_pair_isin():

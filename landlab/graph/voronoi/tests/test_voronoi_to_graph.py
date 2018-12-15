@@ -22,7 +22,7 @@ def xy_3x3_hex():
 
 @pytest.fixture
 def hex_graph():
-    """
+    r"""
     Create this hex graph::
 
         6 - 7 - 8

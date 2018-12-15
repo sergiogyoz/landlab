@@ -1,7 +1,5 @@
 import re
 
-from itertools import combinations
-
 import numpy as np
 import xarray as xr
 from scipy.spatial import Delaunay, Voronoi
@@ -168,7 +166,7 @@ class VoronoiDelaunay(object):
 
 class VoronoiDelaunayToGraph(VoronoiDelaunay):
     def __init__(self, xy_of_node, perimeter_links=None):
-        """A Voronoi with landlab-style names.
+        r"""A Voronoi with landlab-style names.
 
         Parameters
         ----------
