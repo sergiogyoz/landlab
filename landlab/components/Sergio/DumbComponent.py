@@ -13,7 +13,7 @@ class DumbC(Component):
     _info = { #here you put the metadata of your class
         "dumb_height": {
             "dtype": float, #data type
-            "intent": "in", #is it input or ouput or both?
+            "intent": "inout", #is it input or ouput or both?
             "optional": False, #is it optional?
             "units": "m", #what units?
             "mapping": "node", #is it associated to nodes? links? faces? etc
@@ -68,8 +68,8 @@ class DumbC(Component):
         self.spread= s; 
         
         #a reference to my own grid field dumb_height to use in the class
-        self._hs=self._grid.at_node["dumb_height"];
-        self._hs=self._hs+self.a_base_height;
+        self.dhs=self._grid.at_node["dumb_height"];
+        self.dhs=self.dhs+self.a_base_height;
         
     ##### Constructor ends
     
@@ -79,14 +79,14 @@ class DumbC(Component):
     #if time delta is important for the update then we use this
     def run_one_step(self, dt): 
         delta_spread=dt*self.spread;
-        self._hs=self._hs;
-        for i in range(len(self._hs)):
-            self._hs[i]=self._hs[i]+np.random.standard_normal()*delta_spread;
+        self.dhs=self.dhs;
+        for i in range(len(self.dhs)):
+            self.dhs[i]=self.dhs[i]+np.random.standard_normal()*delta_spread;
     #if time delta is not important or is not a temporal update then we use our custom update function
     def update_dumb_heights(self): 
-        self._hs=self._hs;
-        for i in range(len(self._hs)):
-            self._hs[i]=self._hs[i]+np.random.standard_normal()*self.spread;
+        self.dhs=self.dhs;
+        for i in range(len(self.dhs)):
+            self.dhs[i]=self.dhs[i]+np.random.standard_normal()*self.spread;
     
     ##### end of update function
     

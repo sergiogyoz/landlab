@@ -19,13 +19,13 @@ plt.show();
 mydummy=dumb(mygrid, bh=10, s=0.1);
 #plot the component field
 plt.figure();
-imshow_grid(mygrid,mydummy._hs,cmap='inferno_r');
+imshow_grid(mygrid,mydummy.dhs,cmap='inferno_r');
 
 #run one time 
 mydummy.run_one_step(dt=2);
 #plot again
 plt.figure();
-imshow_grid(mygrid,mydummy._hs,cmap='inferno_r');
+imshow_grid(mygrid,mydummy.dhs,cmap='inferno_r');
 
 
 #I use the update instead of the time_step a few times
@@ -33,11 +33,11 @@ for i in range(5):
     mydummy.update_dumb_heights();
 #plot again
 plt.figure();
-imshow_grid(mygrid,mydummy._hs,cmap='inferno_r');
+imshow_grid(mygrid,mydummy.dhs,cmap='inferno_r');
 
 #I use the update instead of the time_step several times
 for i in range(500):
     mydummy.update_dumb_heights();
 #plot again
 plt.figure();
-imshow_grid(mygrid,mydummy._hs,cmap='inferno_r');
+imshow_grid(mygrid,mydummy.dhs,cmap='inferno_r');
