@@ -40,6 +40,7 @@ from .plant_competition_ca import VegCA
 from .potentiality_flowrouting import PotentialityFlowRouter
 from .profiler import ChannelProfiler, Profiler, TrickleDownProfiler
 from .radiation import Radiation
+from .Sergio import DumbC
 from .sink_fill import SinkFiller, SinkFillerBarnes
 from .soil_moisture import SoilInfiltrationGreenAmpt, SoilMoisture
 from .space import Space
@@ -108,6 +109,7 @@ COMPONENTS = [
     Profiler,
     Radiation,
     SedDepEroder,
+    Sergio,
     SimpleSubmarineDiffuser,
     SinkFiller,
     SinkFillerBarnes,
