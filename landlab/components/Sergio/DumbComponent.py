@@ -2,7 +2,9 @@ import numpy as np
 from landlab import Component #base class from which components inherit
 
 class DumbC(Component):
+    """
     
+    """
     
     ###### Required landlab component fields
     # the prefix underscore means is "intended for internal use only"
@@ -63,7 +65,7 @@ class DumbC(Component):
         #this goes up to component and inherets all of its fields here, so everything a component has, our component does too
         super().__init__(grid); 
         
-        #my own class field/values
+        #my own class values
         self.a_base_height=bh; 
         self.spread= s; 
         
