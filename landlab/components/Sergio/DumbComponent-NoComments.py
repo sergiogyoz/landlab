@@ -39,8 +39,7 @@ class DumbC(Component):
       journal = {The "I hope to get better" Journal of science}
     }"""
     
-    def __init__(self, grid, 
-                 bh=20, s=1): 
+    def __init__(self, grid, bh=20, s=1): 
         """
         Parameters
         ----------
@@ -50,10 +49,8 @@ class DumbC(Component):
             A height that I will add to my dumb_height values at every node.
         """ 
         super().__init__(grid); 
-        
         self.a_base_height=bh; 
         self.spread= s; 
-        
         self.dhs=self._grid.at_node["dumb_height"];
         self.dhs=self.dhs+self.a_base_height;
         
