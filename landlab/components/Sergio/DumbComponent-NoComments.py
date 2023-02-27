@@ -3,7 +3,9 @@ from landlab import Component
 
 
 class DumbC(Component):
-
+    """
+    Component doc
+    """
     _name = "SuperDuperComponent"
 
     _unit_agnostic = True
@@ -17,14 +19,14 @@ class DumbC(Component):
             "mapping": "node",
             "doc": "multiplies the height values 'cause... Idk, math",
         },
-        "lalala": {
+        "topographic__elevation": {
             "dtype": float,
-            "intent": "in",
-            "optional": True,
+            "intent": "out",
+            "optional": False,
             "units": "m",
             "mapping": "node",
-            "doc": "multiplies the height values 'cause... Idk, math",
-        }
+            "doc": "Land surface topographic elevation",
+        },
     }
 
     _cite_as = """@article{leMua2021DumbComponent,
@@ -36,7 +38,7 @@ class DumbC(Component):
       number = {11},
       pages = {111},
       author = {Sergio Villamarin and Jane Gloriana Villanueva},
-      title = {Components on landlab: Learn how to use them},
+      title = {Components on landlab: Learn how the fuck to use them},
       journal = {The "I hope to get better" Journal of science}
     }"""
 
@@ -50,18 +52,20 @@ class DumbC(Component):
             A height that I will add to my dumb_height values at every node.
         """
         super().__init__(grid)
+
         self.a_base_height = bh
         self.spread = s
+
+        if "dumb_height" not in self.grid.at_node:
+            self._grid.add_zeros("dumb_height", at="node")
+
         self.dhs = self._grid.at_node["dumb_height"]
-        self.dhs = self.dhs + self.a_base_height
+        self._grid.at_node["topographic__elevation"] = self.dhs + self.a_base_height
 
     def run_one_step(self, dt):
         delta_spread = dt * self.spread
-        self.dhs = self.dhs
-        for i in range(len(self.dhs)):
-            self.dhs[i] = self.dhs[i] + np.random.standard_normal() * delta_spread
+        self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + np.random.standard_normal(size=self.dhs.shape) * delta_spread
 
     def update_dumb_heights(self):
-        self.dhs = self.dhs
-        for i in range(len(self.dhs)):
-            self.dhs[i] = self.dhs[i] + np.random.standard_normal() * self.spread
+        for i in range(len(self._grid.at_node["topographic__elevation"])):
+            self._grid.at_node["topographic__elevation"][i] = self._grid.at_node["topographic__elevation"][i] + np.random.standard_normal() * self.spread

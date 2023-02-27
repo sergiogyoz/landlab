@@ -2,19 +2,13 @@
 from landlab import RasterModelGrid, imshow_grid
 import matplotlib.pyplot as plt
 # import my DumbComponent
-from landlab.components import Componentcita as comp
+from landlab.components import DumbC as dumb
 #%%
 # landlab grid
 mygrid = RasterModelGrid((3, 3), 1)
 
 # add a float field dumb_height to the grid at every node
-mygrid.add_field("topographic__elevation",
-                 [11.0, 3.0, 2.0, 11.0,
-                  12.0, 3.0, 4.0, 12.0,
-                  13.0, 5.0, 4.0, 13.0,
-                  14.0, 5.0, 6.0, 14.0,
-                  15.0, 7.0, 6.0, 15.0]
-                 )
+mygrid.add_field("dumb_height", [0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 4.0, 4.0, 4.0])
 
 # plot the dumb_height values on the nodes
 imshow_grid(
@@ -23,7 +17,7 @@ imshow_grid(
     cmap='inferno_r')
 #%%
 # Here I create an instance of my DumbComponent component
-mydummy = comp(mygrid, bh=10, s=0.1)
+mydummy = dumb(mygrid, bh=10, s=0.1)
 print(mygrid.fields())
 # plot the component topographic elevation field
 plt.figure()
