@@ -54,19 +54,18 @@ class Componentcita(Component):
         """
 
         # grid must be a NetworokModelGrid
-        if not isinstance(grid, NetworkModelGrid):
+        """if not isinstance(grid, NetworkModelGrid):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
             raise ValueError(msg)
-        
+"""
         super().__init__(grid)
         self.smooth = sm
         self.topo = self._grid.at_node["topographic__elevation"]
         self._fd = flow_director
 
     def run_one_step(self, dt):
-        delta_spread = dt * self.spread
-        self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + np.random.standard_normal(size=self.dhs.shape) * delta_spread
+        self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
 
     def update_dumb_heights(self):
         for i in range(len(self._grid.at_node["topographic__elevation"])):
-            self._grid.at_node["topographic__elevation"][i] = self._grid.at_node["topographic__elevation"][i] + np.random.standard_normal() * self.spread
+            self._grid.at_node["topographic__elevation"][i] = self._grid.at_node["topographic__elevation"][i] + 1
