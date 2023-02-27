@@ -46,7 +46,9 @@ from .potentiality_flowrouting import PotentialityFlowRouter
 from .priority_flood_flow_router import PriorityFloodFlowRouter
 from .profiler import ChannelProfiler, Profiler, TrickleDownProfiler
 from .radiation import Radiation
-from .Sergio import DumbC  # Making my component visible when importing landlab
+from .Sergio import (  # Making my components visible when importing landlab
+    DumbC,
+    Componentcita,)
 from .sink_fill import SinkFiller, SinkFillerBarnes
 from .soil_moisture import SoilInfiltrationGreenAmpt, SoilMoisture
 from .space import Space, SpaceLargeScaleEroder
@@ -122,6 +124,7 @@ COMPONENTS = [
     Radiation,
     SedDepEroder,
     DumbC,  # listing inside the components __all__
+    Componentcita,  # once more for the new component
     SimpleSubmarineDiffuser,
     SinkFiller,
     SinkFillerBarnes,

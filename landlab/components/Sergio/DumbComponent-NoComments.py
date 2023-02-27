@@ -36,7 +36,7 @@ class DumbC(Component):
       number = {11},
       pages = {111},
       author = {Sergio Villamarin and Jane Gloriana Villanueva},
-      title = {Components on landlab: Learn how the fuck to use them},
+      title = {Components on landlab: Learn how to use them},
       journal = {The "I hope to get better" Journal of science}
     }"""
 
