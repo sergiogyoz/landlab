@@ -27,6 +27,22 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Land surface topographic elevation",
         },
+        "channel_slope": {
+            "dtype": float,
+            "intent": "out",
+            "optional": False,
+            "units": "-",
+            "mapping": "link",
+            "doc": "Channel slopes from topographic elevation",
+        },
+        "reach_length": {
+            "dtype": float,
+            "intent": "inout",
+            "optional": False,
+            "units": "m",
+            "mapping": "link",
+            "doc": "Length of each reach",
+        },
     }
 
     _cite_as = """@article{leMua2021DumbComponent,
@@ -48,20 +64,31 @@ class Componentcita(Component):
         ----------
         grid: RasterModelGrid
             A grid.
+        flow_director: :py:class:`~landlab.components.FlowDirectorSteepest`
+            A landlab flow director. Currently, must be
+            :py:class:`~landlab.components.FlowDirectorSteepest`.
         smooth: float
             Smoothing parameter to smooth along gradient direction. Must
             be between 0 and 1
         """
 
-        # grid must be a NetworokModelGrid
+        # must be a NetworkModelGrid ??
         """if not isinstance(grid, NetworkModelGrid):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
             raise ValueError(msg)
-"""
+        """
         super().__init__(grid)
         self.smooth = sm
         self.topo = self._grid.at_node["topographic__elevation"]
         self._fd = flow_director
+        """if not isinstance(flow_director, FlowDirectorSteepest):
+            msg = (
+                "NetworkSedimentTransporter: flow_director must be "
+                "FlowDirectorSteepest."
+            )
+            raise ValueError(msg)"""
+
+        self.initialize_output_fields()
 
     def run_one_step(self, dt):
         self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
@@ -69,3 +96,14 @@ class Componentcita(Component):
     def update_dumb_heights(self):
         for i in range(len(self._grid.at_node["topographic__elevation"])):
             self._grid.at_node["topographic__elevation"][i] = self._grid.at_node["topographic__elevation"][i] + 1
+
+    def _update_channel_slopes(self):
+        """Re-calculate channel slopes during each timestep."""
+        upstream_nodes = self._fd.upstream_node_at_link()
+        downstream_nodes = self._fd.downstream_node_at_link()
+        self._grid.at_link["channel_slope"] = (
+            (
+                self._grid.at_node["topographic__elevation"][upstream_nodes]
+                - self._grid.at_node["topographic__elevation"][downstream_nodes]
+            )
+            / self._grid.at_link["reach_length"])
