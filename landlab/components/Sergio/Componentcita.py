@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 from landlab import Component
 
 from landlab.components import FlowDirectorSteepest
@@ -171,35 +172,55 @@ class Componentcita(Component):
         flow_director: :py:class:`~landlab.components.FlowDirectorSteepest`
             A landlab flow director. Currently, must be
             :py:class:`~landlab.components.FlowDirectorSteepest`.
-        smooth: float
-            Smoothing parameter to smooth along gradient direction. Must
-            be between 0 and 1
-        """
-
-        # must be a NetworkModelGrid ??
-        """if not isinstance(grid, NetworkModelGrid):
-            msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
-            raise ValueError(msg)
         """
         super().__init__(grid)
+        D = 2/1000  # default to 2mm in units of m
+        G = 9.80665  # gravity
+        R = 1.65  # specific gravity of sediment
+        Q = 300  # flow discharge m3/s
+        Cz = 10  # Dimentionless Chezy resistance coeff
+
+        # must be a NetworkModelGrid ??
+        """
+        if not isinstance(grid, NetworkModelGrid):
+        msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
+        raise ValueError(msg)
+        """
+        
         self.smooth = sm
         self.topo = self._grid.at_node["topographic__elevation"]
-        self._fd = flow_director
+        "self._fd = flow_director"  # should I assume flow routing happens outside for now
+        # supported flow directors, ommited for now
         """if not isinstance(flow_director, FlowDirectorSteepest):
             msg = (
                 "NetworkSedimentTransporter: flow_director must be "
                 "FlowDirectorSteepest."
             )
             raise ValueError(msg)"""
-
+        
         self.initialize_output_fields()
 
     def run_one_step(self, dt):
         self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
 
-    def update_dumb_heights(self):
-        for i in range(len(self._grid.at_node["topographic__elevation"])):
-            self._grid.at_node["topographic__elevation"][i] = self._grid.at_node["topographic__elevation"][i] + 1
+    def _links_upstream__downstream_nodes(self):
+        index = copy.copy(self._grid.nodes)
+        upstream_nodes = self._grid.nodes
+        downstream_nodes = self._grid.at_node["flow__receiver_node"]
+        down_links = copy.copy(self._grid.at_node["flow__link_to_receiver_node"])
+        active_links_index = (down_links != -1)
+
+
+
+        self._grid.add_field(
+            "downstream_node",
+            
+            at = "link")
+
+        self._grid.add_field("upstream_node",)
+        self._grid["link"]["downstream_node"][self._active_links] = self._grid.at_link["flow__receiver_node"][self._active_links]
+        self._grid["link"]["upstream_node"][self._active_links] = self._grid.at_link["flow__receiver_node"][self._active_links]
+        self._grid.at_node["flow"]
 
     def _update_channel_slopes(self):
         """Re-calculate channel slopes during each timestep."""
@@ -211,3 +232,10 @@ class Componentcita(Component):
                 - self._grid.at_node["topographic__elevation"][downstream_nodes]
             )
             / self._grid.at_link["reach_length"])
+
+    def _update_flow_depths(self):
+        """
+        Re-calculates the flow depth based on the hydraulic relation
+        H = (Q2 / g*S*B^2*Cz^2 )
+        """
+        pass
