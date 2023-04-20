@@ -163,7 +163,7 @@ class Componentcita(Component):
       journal = {The "I hope to get better" Journal of science}
     }"""
 
-    def __init__(self, grid, flow_director, sm=0.5):
+    def __init__(self, grid, flow_director):
         """
         Parameters
         ----------
@@ -200,30 +200,34 @@ class Componentcita(Component):
     def run_one_step(self, dt):
         self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
 
-    def _links_upstream__downstream_nodes(self):
-
-        N = NetworkModelGrid(self._grid)
+    def _upstream__downstream_nodes(self):
+        """
+        It adds the fields "upstream_node" and "downstream_node" to links.
+        each field has the id of the upstream and downstream node based on the 
+        Network model node ids.
+        """
         self._grid.nodes_at_link
         # making a copy instead of a reference.... I'm unsure yet if I should
-        # just make them a reference
-        index = copy.copy(self._grid.number_of_links)
-        tail_nodes = copy.copy(self._grid.nodes_at_link[:,0])
-        head_nodes = copy.copy(self._grid.nodes_at_link[:,1])
-        
-        down_links = copy.copy(self._grid.at_node["flow__link_to_receiver_node"])
-        active_links_index = (down_links != -1)
-
-
-
+        tail_nodes = copy.copy(self._grid.nodes_at_link[:, 0])
+        head_nodes = copy.copy(self._grid.nodes_at_link[:, 1])
+        upstream_nodes = np.where(
+            self._grid["link"]["flow__link_direction"] == 1,
+            tail_nodes,
+            head_nodes)
+        downstream_nodes = np.where(
+            self._grid["link"]["flow__link_direction"] == -1,
+            tail_nodes,
+            head_nodes)
+        self._grid.add_field(
+            "upstream_node",
+            upstream_nodes,
+            at="link"
+        )
         self._grid.add_field(
             "downstream_node",
-            
-            at = "link")
-
-        self._grid.add_field("upstream_node",)
-        self._grid["link"]["downstream_node"][self._active_links] = self._grid.at_link["flow__receiver_node"][self._active_links]
-        self._grid["link"]["upstream_node"][self._active_links] = self._grid.at_link["flow__receiver_node"][self._active_links]
-        self._grid.at_node["flow"]
+            downstream_nodes,
+            at="link"
+        )
 
     def _update_channel_slopes(self):
         """Re-calculate channel slopes during each timestep."""

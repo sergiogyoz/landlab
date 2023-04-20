@@ -11,8 +11,8 @@ from landlab.grid.create_network import network_grid_from_raster
 
 # import my DumbComponent
 from landlab.components import Componentcita as comp
-#%%
 
+#%%
 shape = (7,6)
 # landlab grid
 rastergrid = RasterModelGrid(shape=shape, xy_spacing=1)
@@ -34,21 +34,21 @@ imshow_grid(
 flowdirector = FlowDirectorSteepest(rastergrid, "topographic__elevation")
 rastergrid.add_ones("reach_length", at="link", units="m")
 """
-flowdirector = FlowDirectorD8(rastergrid)
-flowdirector.run_one_step()
+
 # should I use the network to grid to create the simplified network? mmm
 network_grid = network_grid_from_raster(rastergrid)
-"""graph.plot_graph(
+graph.plot_graph(
     network_grid,
     at="node,link",
     with_id=True
-)"""
+)
 
 print(rastergrid.fields())
-# rastergrid.add_field("upstream_node", values = rastergrid.at_node["flow__receiver_node"], at="link")
 
-# rastergrid.at_node["flow__receiver_node"]
-
+#%%
+flow_director = FlowDirectorSteepest(network_grid)
+nety = comp.Componentcita(network_grid, flow_director)
+nety._upstream__downstream_nodes()
 
 #%%
 # Here I create an instance of my component
@@ -60,27 +60,15 @@ imshow_grid(
     mydummy.grid,
     mydummy.grid.at_node["topographic__elevation"],
     cmap='inferno_r')
-#%%
-mydummy._update_channel_slopes()
-plt.figure()
-imshow_grid(
-    mydummy.grid,
-    mydummy.grid.at_node["topographic__elevation"],
-    cmap='inferno_r')
-mydummy.grid.fields()
-# %%
-mydummy.grid.fields()
-# %%
-mydummy.grid.at_link["channel_slope"]
-# %%
-mydummy.grid.at_node["topographic__steepest_slope"]
-# %%
 
 # %%
+mydummy.grid.fields()
 
+# %%
 down_links = copy.copy(rastergrid.at_node["flow__link_to_receiver_node"])
 active_links_index = (down_links != -1)
 nodes = np.array(range(rastergrid.number_of_nodes))
 upstream_nodes = copy.copy(nodes[active_links_index])
 downstream_nodes = copy.copy(rastergrid.at_node["flow__receiver_node"][active_links_index])
+
 # %%
