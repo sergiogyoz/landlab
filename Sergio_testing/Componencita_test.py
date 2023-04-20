@@ -4,6 +4,7 @@ import numpy as np
 import copy
 
 from landlab import RasterModelGrid, imshow_grid
+from landlab import NetworkModelGrid
 from landlab.components import FlowDirectorSteepest, FlowDirectorD8
 import landlab.plot.graph as graph
 from landlab.grid.create_network import network_grid_from_raster
@@ -36,14 +37,13 @@ rastergrid.add_ones("reach_length", at="link", units="m")
 flowdirector = FlowDirectorD8(rastergrid)
 flowdirector.run_one_step()
 # should I use the network to grid to create the simplified network? mmm
-"""
 network_grid = network_grid_from_raster(rastergrid)
-graph.plot_graph(
+"""graph.plot_graph(
     network_grid,
     at="node,link",
     with_id=True
-)
-"""
+)"""
+
 print(rastergrid.fields())
 # rastergrid.add_field("upstream_node", values = rastergrid.at_node["flow__receiver_node"], at="link")
 

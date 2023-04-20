@@ -180,33 +180,36 @@ class Componentcita(Component):
         Q = 300  # flow discharge m3/s
         Cz = 10  # Dimentionless Chezy resistance coeff
 
-        # must be a NetworkModelGrid ??
-        """
+        # it must be a NetworkModelGrid 
         if not isinstance(grid, NetworkModelGrid):
-        msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
-        raise ValueError(msg)
-        """
-        
+            msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
+            raise ValueError(msg)
         self.smooth = sm
         self.topo = self._grid.at_node["topographic__elevation"]
-        "self._fd = flow_director"  # should I assume flow routing happens outside for now
+        # self._fd = flow_director  # should I assume flow routing happens outside for now
         # supported flow directors, ommited for now
-        """if not isinstance(flow_director, FlowDirectorSteepest):
+        if not isinstance(flow_director, FlowDirectorSteepest):
             msg = (
                 "NetworkSedimentTransporter: flow_director must be "
                 "FlowDirectorSteepest."
             )
-            raise ValueError(msg)"""
-        
-        self.initialize_output_fields()
+            raise ValueError(msg)
+
+        self.initialize_output_fields()  # are there any? so far I haven't define any as such
 
     def run_one_step(self, dt):
         self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
 
     def _links_upstream__downstream_nodes(self):
-        index = copy.copy(self._grid.nodes)
-        upstream_nodes = self._grid.nodes
-        downstream_nodes = self._grid.at_node["flow__receiver_node"]
+
+        N = NetworkModelGrid(self._grid)
+        self._grid.nodes_at_link
+        # making a copy instead of a reference.... I'm unsure yet if I should
+        # just make them a reference
+        index = copy.copy(self._grid.number_of_links)
+        tail_nodes = copy.copy(self._grid.nodes_at_link[:,0])
+        head_nodes = copy.copy(self._grid.nodes_at_link[:,1])
+        
         down_links = copy.copy(self._grid.at_node["flow__link_to_receiver_node"])
         active_links_index = (down_links != -1)
 
