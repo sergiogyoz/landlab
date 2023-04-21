@@ -38,7 +38,6 @@ rastergrid.add_ones("reach_length", at="link", units="m")
 # should I use the network to grid to create the simplified network? mmm
 network_grid = network_grid_from_raster(rastergrid)
 print(rastergrid.fields())
-
 #%%
 graph.plot_graph(
     network_grid,
@@ -47,11 +46,24 @@ graph.plot_graph(
 )
 
 #%%
+network_grid.add_ones("reach_length", at = "link")
 flow_director = FlowDirectorSteepest(network_grid)
 flow_director.run_one_step()
 nety = comp.Componentcita(network_grid, flow_director)
-nety._add_upstream__downstream_nodes()
 network_grid["link"].keys()
+
 # %%
 
+pow = np.array(range(-30,30))
+D = np.power(1.1, pow)
 
+plt.plot(D)
+nety.Q = 300
+nety.G = 9.8
+nety.width = 1
+
+# %%
+taucrit = nety._critical_shear(D)
+plt.plot(D, taucrit)
+
+# %%
