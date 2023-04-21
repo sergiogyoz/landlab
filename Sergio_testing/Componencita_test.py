@@ -37,38 +37,21 @@ rastergrid.add_ones("reach_length", at="link", units="m")
 
 # should I use the network to grid to create the simplified network? mmm
 network_grid = network_grid_from_raster(rastergrid)
+print(rastergrid.fields())
+
+#%%
 graph.plot_graph(
     network_grid,
     at="node,link",
     with_id=True
 )
 
-print(rastergrid.fields())
-
 #%%
 flow_director = FlowDirectorSteepest(network_grid)
+flow_director.run_one_step()
 nety = comp.Componentcita(network_grid, flow_director)
-nety._upstream__downstream_nodes()
-
-#%%
-# Here I create an instance of my component
-mydummy = comp.Componentcita(rastergrid, flowdirector, sm=0.5)
-mydummy.grid.fields()
-# plot the component topographic elevation field
-plt.figure()
-imshow_grid(
-    mydummy.grid,
-    mydummy.grid.at_node["topographic__elevation"],
-    cmap='inferno_r')
-
+nety._add_upstream__downstream_nodes()
+network_grid["link"].keys()
 # %%
-mydummy.grid.fields()
 
-# %%
-down_links = copy.copy(rastergrid.at_node["flow__link_to_receiver_node"])
-active_links_index = (down_links != -1)
-nodes = np.array(range(rastergrid.number_of_nodes))
-upstream_nodes = copy.copy(nodes[active_links_index])
-downstream_nodes = copy.copy(rastergrid.at_node["flow__receiver_node"][active_links_index])
 
-# %%

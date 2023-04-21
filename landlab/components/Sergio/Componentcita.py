@@ -18,7 +18,7 @@ class Componentcita(Component):
     _name = "GrainSizeBedRockInciser"
 
     _unit_agnostic = False
-
+    # all arguments are optional for now, yet to review
     _info = {
         "topographic__elevation": {
             "dtype": float,
@@ -31,7 +31,7 @@ class Componentcita(Component):
         "channel_slope": {
             "dtype": float,
             "intent": "out",
-            "optional": False,
+            "optional": True,
             "units": "-",
             "mapping": "link",
             "doc": "Channel slopes from topographic elevation",
@@ -39,7 +39,7 @@ class Componentcita(Component):
         "flood_discharge": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m^3/s",
             "mapping": "link",
             "doc": "Morphodynamically active discharge.",
@@ -47,7 +47,7 @@ class Componentcita(Component):
         "flood_intermittency": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "-",
             "mapping": "link",
             "doc": "Fraction of time when the river is morphodynamically active: former value used when bedrock morphodynamics is considered",
@@ -55,7 +55,7 @@ class Componentcita(Component):
         "channel_width": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "Channel link average width",
@@ -63,7 +63,7 @@ class Componentcita(Component):
         "sediment_grain_size": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "mm",
             "mapping": "link",
             "doc": "Sediment grain size on the link (single size sediment).",
@@ -79,7 +79,7 @@ class Componentcita(Component):
         "dimentionless_Chezy": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "-",
             "mapping": "link",
             "doc": "Dimentionless Chezy C coefficient calculated as Cz=U/sqrt(tau/rho).",
@@ -87,7 +87,7 @@ class Componentcita(Component):
         "sediment_porosity": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "-",
             "mapping": "link",
             "doc": "Porosity of the alluvium.",
@@ -95,7 +95,7 @@ class Componentcita(Component):
         "macroroughness": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "Thickness of macroroughness layer. See Zhang paper",
@@ -103,7 +103,7 @@ class Componentcita(Component):
         "reach_length": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "km",
             "mapping": "link",
             "doc": "Thickness of macroroughness layer. See Zhang 2015",
@@ -111,7 +111,7 @@ class Componentcita(Component):
         "wear_coefficient": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "Wear coefficient. See Sklar and Dietrich 2004",
@@ -127,7 +127,7 @@ class Componentcita(Component):
         "sedimentograph_info": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "This is really used more as 4/2 parameters in the model, recheck when the modelling time comes. Mean bedload feed rate averaged over sedimentograph",
@@ -135,7 +135,7 @@ class Componentcita(Component):
         "sedimentograph_period": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "Period of sedimentograph",
@@ -143,11 +143,28 @@ class Componentcita(Component):
         "high_feed_period": {
             "dtype": float,
             "intent": "in",
-            "optional": False,
+            "optional": True,
             "units": "m",
             "mapping": "link",
             "doc": "Duration of high feed rate of sedimentograph",
+        },
+        "upstream_node": {
+            "dtype": float,
+            "intent": "out",
+            "optional": True,
+            "units": "m",
+            "mapping": "link",
+            "doc": "The upstream node id at every link",
+        },
+        "downstream_node": {
+            "dtype": float,
+            "intent": "out",
+            "optional": True,
+            "units": "m",
+            "mapping": "link",
+            "doc": "The downstream node id at every link",
         }
+
     }
 
     _cite_as = """@article{leMua2021DumbComponent,
@@ -184,8 +201,8 @@ class Componentcita(Component):
         if not isinstance(grid, NetworkModelGrid):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
             raise ValueError(msg)
-        self.smooth = sm
-        self.topo = self._grid.at_node["topographic__elevation"]
+        # local topo var to ease access
+        self._topo = self._grid.at_node["topographic__elevation"]
         # self._fd = flow_director  # should I assume flow routing happens outside for now
         # supported flow directors, ommited for now
         if not isinstance(flow_director, FlowDirectorSteepest):
@@ -200,7 +217,7 @@ class Componentcita(Component):
     def run_one_step(self, dt):
         self._grid.at_node["topographic__elevation"] = self._grid.at_node["topographic__elevation"] + dt
 
-    def _upstream__downstream_nodes(self):
+    def _add_upstream__downstream_nodes(self):
         """
         It adds the fields "upstream_node" and "downstream_node" to links.
         each field has the id of the upstream and downstream node based on the 
@@ -230,8 +247,8 @@ class Componentcita(Component):
         )
 
     def _update_channel_slopes(self):
-        """Re-calculate channel slopes during each timestep."""
-        upstream_nodes = self._fd.upstream_node_at_link()
+        """Calculate the channel slopes Re-calculate channel slopes during each timestep."""
+
         downstream_nodes = self._fd.downstream_node_at_link()
         self._grid.at_link["channel_slope"] = (
             (
