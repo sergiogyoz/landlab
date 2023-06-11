@@ -152,7 +152,7 @@ class Componentcita(Component):
         },
         "sed_capacity": {
             "dtype": float,
-            "intent": "out",
+            "intent": "inout",
             "optional": False,
             "units": "m",
             "mapping": "node",
@@ -222,32 +222,59 @@ class Componentcita(Component):
       journal = {The "I hope to get better" Journal of science}
     }"""
 
-    def __init__(self, grid, flow_director, clobber=False):
+    def __init__(self, grid, flow_director, clobber=False, **kwargs):
         """
         Parameters
         ----------
         grid: RasterModelGrid
-            A grid.
+            (required) A grid.
         flow_director: :py:class:`~landlab.components.FlowDirectorSteepest`
-            A landlab flow director. Currently, must be
+            (required) A landlab flow director. Currently, must be
             :py:class:`~landlab.components.FlowDirectorSteepest`.
+        clobber: bool
+            currently not implemented. Defaults to False
+        discharge: float
+            flow discharge in m^3/s. Defaults to 300
+        Cz: float
+            Dimentionless Chezy resistance coeff. Defaults to 10
+        beta: float
+            Related to sediment abrasion as beta = 3*alpha. Units of 1/m. Defaults to 0.05*0.001
+        shear_coeff: float
+            Sediment transport capacity coefficient (eq 5c). Defaults to 4
+        shear_exp: float
+            Sediment transport capacity exponent (eq 5c). Defaults to 1.5
+        crit_shear: float
+            Dimentionless critical shear stress for incipient motion of sediemnt. Defaults to 0.0495
+        porosity: float
+            Bedload sediment porosity. Defaults to 0.35
+        spec_grav: float
+            Specific gravity of sediment. Defaults to 1.65
+        k_viscosity: float
+            Kinematic viscosity of water. Defaults to 10**-6, the kinematic viscosity of water (at 20C)
+        
+        Examples
+        --------
+        
         """
         super().__init__(grid)
-        self.G = 9.80665  # gravity
-        self.R = 1.65  # specific gravity of sediment
-        self.porosity = 0.36  # sediment porosity
-        self.Q = 300  # flow discharge m3/s
-        self.Cz = 10  # Dimentionless Chezy resistance coeff
-        self.v = 10**-6  # kinematic viscosity of water (at 20C)
-        self.wear_coefficient = 0.05 * 0.001  # 1/m related to sediment abrasion as beta = 3*alpha
 
-        # combination of parameters for equation 5c
-        self.ssalpha = 4
-        self.ssna = 1.5
-        self.sstau_star_c = 0.0495
-        #self.ssalpha = 5.7
-        #self.ssna = 1.5
-        #self.sstau_star_c = 0.03
+        self.G = 9.80665  # gravity
+        self.Q = kwargs["discharge"] if "discharge" in kwargs else 300
+        self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
+        self.wear_coefficient = kwargs["beta"] if "beta" in kwargs else 0.05 * 0.001
+
+        self.ssalpha = kwargs["shear_coeff"] if "shear_coeff" in kwargs else 4
+        self.ssna = kwargs["shear_exp"] if "shear_exp" in kwargs else 1.5
+        self.sstau_star_c = kwargs["crit_shear"] if "crit_shear" in kwargs else 0.0495
+
+        self.porosity = kwargs["porosity"] if "porosity" in kwargs else 0.35
+        self.spec_grav = kwargs["spec_grav"] if "spec_grav" in kwargs else 1.65
+        self.v = kwargs["k_viscosity"] if "k_viscosity" in kwargs else 10**-6
+
+        # another combination of parameters for equation 5c
+        # self.ssalpha = 5.7
+        # self.ssna = 1.5
+        # self.sstau_star_c = 0.03
 
         # it must be a NetworkModelGrid
         if not isinstance(grid, NetworkModelGrid):
@@ -285,19 +312,18 @@ class Componentcita(Component):
         It updates the mean alluvium thickness and the bedrock elevation based
         on the model by Zhang et al (2015,2018)
         """
-        # uplift
-        self._uplift(1 * 10**-3, dt)
+        # uplift should be taken out of the code
+        if urate >= 0:
+            self._uplift(urate, dt)
+        else:
+            self._uplift(1 * 10**-3, dt)
         # bed erosion (applied to the upstream node)
-        tau_star = self._critical_shear_star()
+        tau_star_crit = self._critical_shear_star()  # can be ignored since we use 0.0495 from the paper
+        tau_star_crit = 0.0495
+        tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover()
-        self._calculate_sed_capacity(tau_star)
-        bed_erosion = (self._grid.at_link["flood_intermittency"]
-                       * self.wear_coefficient
-                       * self._grid.at_node["sed_capacity"][self._unode]
-                       * self._grid.at_node["fraction_alluvium_cover"][self._unode]
-                       * (1 - self._grid.at_node["fraction_alluvium_cover"][self._unode])
-                       * dt)
-        self._grid.at_node["bedrock"][self._unode] = self._grid.at_node["bedrock"][self._unode] - bed_erosion
+        self._calculate_sed_capacity(tau_star, tau_star_crit)
+        self._bed_erosion(dt)
         # mean alluvium thickness change
         dx = self._grid.at_link["reach_length"]
         dpq = (self._grid.at_node["fraction_alluvium_cover"][self._unode] * self._grid.at_node["sed_capacity"][self._unode]
@@ -307,8 +333,10 @@ class Componentcita(Component):
                      * dt / (1 - self.porosity)
                      / self._grid.at_node["fraction_alluvium_cover"][self._unode])
         self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
+        # update slopes
+        self._update_channel_slopes()
 
-    def _uplift(self, dt, urate = -1,):
+    def _uplift(self, dt, urate=-1,):
         """
         uplift rate should be given in units of m/kyr. dt units are kyr
         """
@@ -364,21 +392,43 @@ class Componentcita(Component):
         S = Sa + Sb
         return S
 
-    def _update_flow_depths(self):
+    def _calculate_flow_depths(self):
         """
         Re-calculates the flow depth based on the hydraulic relation
-        H = (Q2 / g*S*B^2*Cz^2 )
+        H = [Q^2 / g*S*B^2*Cz^2]^(1/3)
         """
         H = ((self.Q * self.Q)
              / (self.G * self._grid.at_link["channel_slope"]
-                * self._grid.at_link["channel_width"]
-                * self.Cz * self.Cz))
+                * np.square(self._grid.at_link["channel_width"])
+                * self.Cz * self.Cz)) ** (1 / 3)
         return H
 
-    def _critical_shear_star(self, method="Parker", specific_gravity=1.65):
+    def _calculate_shear_star(self, method="Parker"):
+        """
+        Re-calculates the dimentionless bed shear stress at normal flow
+        conditions based on the hydraulic relations derived by Parker
+        tau_star = [Q^2 / g*B^2*Cz^2]^(1/3) * S^(2/3) / (R * D)
+        """
+        print(self.Q)
+        print(self.G)
+        print(self.Cz)
+        print(self._grid.at_link["channel_width"])
+        print(self._grid.at_link["channel_slope"])
+        print(self._grid.at_link["sediment_grain_size"])
+        
+        tau_star = (((self.Q * self.Q)
+                     / (self.G * self.Cz * self.Cz
+                        * np.square(self._grid.at_link["channel_width"])
+                        )) ** (1 / 3)
+                    * np.power(self._grid.at_link["channel_slope"], 2 / 3)
+                    / (self.spec_grav
+                       * self._grid.at_link["sediment_grain_size"]))
+        return tau_star
+
+    def _critical_shear_star(self, method="Parker"):
         """
         Returns vector of the dimentionless critical shear stress based on grain size
-        diameters using the corresponding method.
+        diameters using the corresponding method. Only Parker is implemented now.
             method: "Parker"
                 Brownlie corrected formula.
             method: "Soulsby"
@@ -388,9 +438,9 @@ class Componentcita(Component):
             method: Wilcock and Crowe
                 Wilcock potential formualtion. Requires addicional parameters.
         """
-        Re = (np.sqrt(specific_gravity * self.G 
-                     * self._grid.at_link["sediment_grain_size"])
-                     * self._grid.at_link["sediment_grain_size"] / self.v)
+        Re = (np.sqrt(self.spec_grav * self.G
+                      * self._grid.at_link["sediment_grain_size"])
+              * self._grid.at_link["sediment_grain_size"] / self.v)
         Re6 = np.power(Re, -0.6)
         if method == "Parker":
             tau_c_star = 0.5 * (0.22 * Re6 + 0.06 * np.power(10, -7.7 * Re6))
@@ -402,15 +452,92 @@ class Componentcita(Component):
         linear alluvium cover function. line between 0.05 and 0.95 from
         minimum (deep pockets) cover to maximum (effective) cover of the bed
         """
-        self._grid.at_node["fraction_alluvium_cover"] = np.ones_like(self._grid.at_node["fraction_alluvium_cover"])
+        self._grid.at_node["fraction_alluvium_cover"] = np.zeros_like(self._grid.at_node["fraction_alluvium_cover"])
         chi = self._grid.at_node["mean_alluvium_thickness"][self._unode] / self._grid.at_link["macroroughness"]
         threshold = (1 - p0) / (p1 - p0)
-        self._grid.at_node["fraction_alluvium_cover"][self._unode][chi < threshold] = p0 + (p1 - p0) * chi[chi < threshold]
+        print(chi)
+        cover = np.where(chi < threshold, p0 + (p1 - p0) * chi, np.ones_like(chi))
+        self._grid.at_node["fraction_alluvium_cover"][self._unode] = cover
+        print(self._grid.at_node["fraction_alluvium_cover"])
 
-    def _calculate_sed_capacity(self, tau_star):
+    def _calculate_sed_capacity(self, tau_star, tau_star_crit=0.0495):
+        """
+        Calculates sediment flow capacity for a link and stores it at
+        the upstream node field "sed_capacity". It uses the formula
+        bla bla bla and ignores tau star crit
+        the real issue is that the threshold of motion doesn't
+        depend on the grain size which is concerning to me...
+        """
         excess_shear = tau_star - self.sstau_star_c
         excess_shear[excess_shear < 0] = 0
-        self._grid.at_node["sed_capacity"][self._unode] = (self.ssalpha 
-            * ((self.R * self.G * self._grid.at_link["sediment_grain_size"])**0.5)
+        self._grid.at_node["sed_capacity"][self._unode] = (self.ssalpha
+            * ((self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"])**0.5)
             * self._grid.at_link["sediment_grain_size"]
             * (excess_shear)**(self.ssna))
+
+    def _bed_erosion(self, dt):
+        """
+        Calculates bed erosion discretizing the differential equation
+        of the bed in the upstream nodes (representing the link downstream).
+        Must be called after updating sediment capacity and
+        fraction of alluvium cover.
+        """
+        erosion = (self._grid.at_link["flood_intermittency"]
+                   * self.wear_coefficient
+                   * self._grid.at_node["sed_capacity"][self._unode]
+                   * self._grid.at_node["fraction_alluvium_cover"][self._unode]
+                   * (1 - self._grid.at_node["fraction_alluvium_cover"][self._unode])
+                   * dt)
+        self._grid.at_node["bedrock"][self._unode] = self._grid.at_node["bedrock"][self._unode] - erosion
+
+    @staticmethod
+    def _preset_fields(ngrid, all_ones=False):
+        """
+        presets all the required fields of the grid needed for an instance
+        of componentcita. If all_ones is True it sets all such parameters
+        to 1, otherwise it uses commonly found values of these parameters.
+        For more info on the parameters set see non optional inputs
+        of this component.
+        """
+
+        nodes1 = np.ones(ngrid.at_node.size)
+        links1 = np.ones(ngrid.at_link.size)
+        if all_ones:
+            ngrid.add_field("reach_length", links1, at="link")
+            ngrid.add_field("flood_discharge", links1, at="link")
+            ngrid.add_field("flood_intermittency", links1, at="link") 
+            ngrid.add_field("channel_width", links1, at="link")
+            ngrid.add_field("sediment_grain_size", links1, at="link")
+            ngrid.add_field("sed_capacity", nodes1, at="node")
+            ngrid.add_field("macroroughness", links1, at="link")
+        else:
+            ngrid.add_field("reach_length", 100 * links1, at="link")
+            ngrid.add_field("flood_discharge", 300 * links1, at="link")
+            ngrid.add_field("flood_intermittency", 0.05 * links1, at="link") 
+            ngrid.add_field("channel_width", 100 * links1, at="link")
+            ngrid.add_field("sediment_grain_size", 0.02 * links1, at="link")
+            ngrid.add_field("sed_capacity", 0 * nodes1, at="node")
+            ngrid.add_field("macroroughness", 1 * links1, at="link")
+
+    @staticmethod
+    def _preset_network(which_network=0):
+        """
+        returns a network grid and the associated flow director from a list of 
+        predefined networks for use on small examples and tests. Currently only 1.
+        """
+        match which_network:
+            case 0:
+                y_of_node = (1, 1, 1, 1)
+                x_of_node = (1, 2, 3, 4)
+                nodes_at_link = ((0, 1), (1, 2), (2, 3))
+
+                ngrid = NetworkModelGrid((y_of_node, x_of_node), nodes_at_link)
+                scale = 0.4  # Test depend on this number !!!
+                topo = np.array([4, 3, 2, 1]) * scale
+                ngrid.add_field("topographic__elevation", topo)
+                flow_director = FlowDirectorSteepest(ngrid)
+                flow_director.run_one_step()
+                return ngrid, flow_director
+
+
+
