@@ -18,6 +18,7 @@ def test_preset_network():
 def test_preset_fields():
     ngrid, flow_director = comp.Componentcita._preset_network()
     comp.Componentcita._preset_fields(ngrid)
+    nety = comp.Componentcita(ngrid, flow_director)
 
     ngrid.at_node.keys()
     node_keys_output = ['topographic__elevation',
@@ -28,9 +29,10 @@ def test_preset_fields():
                         'sed_capacity',
                         'bedrock',
                         'mean_alluvium_thickness',
-                        'fraction_alluvium_cover']
+                        'fraction_alluvium_cover',
+                        'fraction_alluvium_avaliable']
     for key in node_keys_output:
-        assert ngrid.has_field( key, at="node")
+        assert ngrid.has_field(key, at="node"), f"node field {key} is missing"
 
     ngrid.at_link.keys()
     link_keys_output = ['flow__link_direction',
@@ -42,9 +44,9 @@ def test_preset_fields():
                         'macroroughness',
                         'upstream_node',
                         'downstream_node',
-                        'channel_slope'] 
+                        'channel_slope']
     for key in link_keys_output:
-        assert ngrid.has_field( key, at="link")
+        assert ngrid.has_field(key, at="link"), f"link field {key} is missing"
 
 
 
@@ -83,7 +85,8 @@ def test_update_slopes():
     alluvium = np.array([5, 4, 2, 1]) * S_alluv
     ngrid.at_node["mean_alluvium_thickness"] = alluvium
 
-    slopes = eroder._update_channel_slopes()
+    eroder._update_channel_slopes()
+    slopes = ngrid.at_link["channel_slope"]
     slopes_check = np.array([0.0041, 0.0042, 0.0041])
     np.testing.assert_allclose(slopes, slopes_check, rtol=10**-4)
 
@@ -142,8 +145,22 @@ def test_bed_erosion():
     np.testing.assert_allclose(fraction, fraction_check, rtol=10**-4)
 
 
-# %%
+def run_all_test():
+    test_preset_network()
+    test_preset_fields()
+    test_critical_shear_star()
+    test_calculate_shear_star()
+    test_update_slopes()
+    test_calculate_fraction_alluvium_cover()
+    test_calculate_sed_capacity()
+    test_calculate_flow_depths()
+    test_bed_erosion()
 
+# add corrected alluvium transport and add extra cases for bed erosion
+
+
+# %%
+run_all_test()
 
 #%%
 import numpy as np
@@ -160,12 +177,4 @@ ngrid, flow_director = comp.Componentcita._preset_network()
 comp.Componentcita._preset_fields(ngrid)
 eroder = comp.Componentcita(ngrid, flow_director)
 
-
-
-# %%
-ngrid.at_node["fraction_alluvium_cover"][eroder._unode]
-# %%
-eroder._unode
-# %%
-ngrid.at_node["fraction_alluvium_cover"][eroder._unode] = eroder._unode
 # %%

@@ -3,7 +3,7 @@ import copy
 from landlab import Component
 
 from landlab.components import FlowDirectorSteepest
-from landlab.data_record import DataRecord
+# from landlab.data_record import DataRecord
 from landlab.grid.network import NetworkModelGrid
 
 
@@ -184,7 +184,7 @@ class Componentcita(Component):
         },
         "mean_alluvium_thickness": {
             "dtype": float,
-            "intent": "out",
+            "intent": "inout",
             "optional": False,
             "units": "m",
             "mapping": "node",
@@ -205,6 +205,14 @@ class Componentcita(Component):
             "units": "%",
             "mapping": "node",
             "doc": "Fraction of alluvium cover of a link stored on its upstream node. Percentage of bed cover by alluvium protecting it from abrasion erosion as described in L. Zhang 2015",
+        },
+        "fraction_alluvium_avaliable": {
+            "dtype": float,
+            "intent": "out",
+            "optional": False,
+            "units": "%",
+            "mapping": "node",
+            "doc": "Fraction of cover that is available for bedload transport as described in L. Zhang 2018",
         }
 
     }
@@ -222,7 +230,7 @@ class Componentcita(Component):
       journal = {The "I hope to get better" Journal of science}
     }"""
 
-    def __init__(self, grid, flow_director, clobber=False, **kwargs):
+    def __init__(self, grid, flow_director, corrected=True, clobber=False, **kwargs):
         """
         Parameters
         ----------
@@ -251,13 +259,18 @@ class Componentcita(Component):
             Specific gravity of sediment. Defaults to 1.65
         k_viscosity: float
             Kinematic viscosity of water. Defaults to 10**-6, the kinematic viscosity of water (at 20C)
-        
+        p0: float
+            Lower percentage of bed cover (deep pockets). Defaults to 0.05 = 5%
+        p1: float
+            Higher percentage for effective bed cover. Defaults to 0.95 = 95%
+
         Examples
         --------
         
         """
         super().__init__(grid)
 
+        self.corrected = corrected
         self.G = 9.80665  # gravity
         self.Q = kwargs["discharge"] if "discharge" in kwargs else 300
         self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
@@ -267,15 +280,22 @@ class Componentcita(Component):
         self.ssna = kwargs["shear_exp"] if "shear_exp" in kwargs else 1.5
         self.sstau_star_c = kwargs["crit_shear"] if "crit_shear" in kwargs else 0.0495
 
-        self.porosity = kwargs["porosity"] if "porosity" in kwargs else 0.35
-        self.spec_grav = kwargs["spec_grav"] if "spec_grav" in kwargs else 1.65
-        self.v = kwargs["k_viscosity"] if "k_viscosity" in kwargs else 10**-6
-
         # another combination of parameters for equation 5c
         # self.ssalpha = 5.7
         # self.ssna = 1.5
         # self.sstau_star_c = 0.03
 
+        self.porosity = kwargs["porosity"] if "porosity" in kwargs else 0.35
+        self.spec_grav = kwargs["spec_grav"] if "spec_grav" in kwargs else 1.65
+        self.v = kwargs["k_viscosity"] if "k_viscosity" in kwargs else 10**-6
+
+        self.p0 = kwargs["p0"] if "p0" in kwargs else 0.05
+        self.p1 = kwargs["p1"] if "p1" in kwargs else 0.95
+
+        self.sources = np.array([], dtype=np.int32)
+        self.outlets = np.array([], dtype=np.int32)
+
+        # deep pockets cover and maximum effective cover
         # it must be a NetworkModelGrid
         if not isinstance(grid, NetworkModelGrid):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
@@ -290,60 +310,40 @@ class Componentcita(Component):
             )
             raise ValueError(msg)
 
-        # local topo var to ease access
-        self._topo = self._grid.at_node["topographic__elevation"]
         # topographic elevation is the bedrock topography for now
-        if not self._grid.has_field("bedrock"):
+        self._topo = self._grid.at_node["topographic__elevation"]
+        if not self._grid.has_field("bedrock", at="node"):
             self._grid.add_field("bedrock", copy.copy(self._topo), at="node")
         # add upstream and downstream field to each link
-        if not self._grid.has_field("upstream_node"):
+        if not self._grid.has_field("upstream_node", at="link"):
             self._add_upstream_downstream_nodes()
         self._unode = self._grid.at_link["upstream_node"]
         self._dnode = self._grid.at_link["downstream_node"]
         # add ouput fields
         self.initialize_output_fields()
         # update channel slopes
-        self._grid.at_link["channel_slope"] = self._update_channel_slopes()
+        self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
         #  don't know yet how to handle these
 
-    def run_one_step(self, dt, urate=-1):
+    def run_one_step(self, dt, urate=-1, omit=np.array([], np.int32)):
         """
         It updates the mean alluvium thickness and the bedrock elevation based
         on the model by Zhang et al (2015,2018)
         """
-        # uplift should be taken out of the code
-        if urate >= 0:
-            self._uplift(urate, dt)
-        else:
-            self._uplift(1 * 10**-3, dt)
-        # bed erosion (applied to the upstream node)
+        # calculate parameters needed in the pde
         tau_star_crit = self._critical_shear_star()  # can be ignored since we use 0.0495 from the paper
         tau_star_crit = 0.0495
         tau_star = self._calculate_shear_star()
-        self._calculate_fraction_alluvium_cover()
-        self._calculate_sed_capacity(tau_star, tau_star_crit)
+        self._calculate_fraction_alluvium_cover(self.p0, self.p1)
+        self._calculate_corrected_fraction(self.p0)
+        self._calculate_sed_capacity(tau_star, tau_star_crit, omit)
+        # bed erosion (applied to the upstream node)
         self._bed_erosion(dt)
         # mean alluvium thickness change
-        dx = self._grid.at_link["reach_length"]
-        dpq = (self._grid.at_node["fraction_alluvium_cover"][self._unode] * self._grid.at_node["sed_capacity"][self._unode]
-               - self._grid.at_node["fraction_alluvium_cover"][self._dnode] * self._grid.at_node["sed_capacity"][self._dnode])
-        cover_dif = (-self._grid.at_link["flood_intermittency"]
-                     * dpq / dx
-                     * dt / (1 - self.porosity)
-                     / self._grid.at_node["fraction_alluvium_cover"][self._unode])
-        self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
+        self._mean_alluvium_change(dt)
         # update slopes
         self._update_channel_slopes()
-
-    def _uplift(self, dt, urate=-1,):
-        """
-        uplift rate should be given in units of m/kyr. dt units are kyr
-        """
-        if urate < 0:
-            self._grid.at_node["bedrock"] = self._grid.at_node["bedrock"] + self._grid.at_node["uplift_rate"] * dt
-        else:
-            self._grid.at_node["bedrock"] = self._grid.at_node["bedrock"] + urate * dt
 
     def _add_upstream_downstream_nodes(self):
         """
@@ -390,7 +390,8 @@ class Componentcita(Component):
             / self._grid.at_link["reach_length"])
 
         S = Sa + Sb
-        return S
+        S[S < 0] = 0
+        self._grid.at_link["channel_slope"] = S
 
     def _calculate_flow_depths(self):
         """
@@ -409,17 +410,10 @@ class Componentcita(Component):
         conditions based on the hydraulic relations derived by Parker
         tau_star = [Q^2 / g*B^2*Cz^2]^(1/3) * S^(2/3) / (R * D)
         """
-        print(self.Q)
-        print(self.G)
-        print(self.Cz)
-        print(self._grid.at_link["channel_width"])
-        print(self._grid.at_link["channel_slope"])
-        print(self._grid.at_link["sediment_grain_size"])
-        
-        tau_star = (((self.Q * self.Q)
-                     / (self.G * self.Cz * self.Cz
-                        * np.square(self._grid.at_link["channel_width"])
-                        )) ** (1 / 3)
+        tau_star = (np.power((self.Q * self.Q)
+                             / (self.G * self.Cz * self.Cz
+                                * np.square(self._grid.at_link["channel_width"])
+                                ), 1 / 3)
                     * np.power(self._grid.at_link["channel_slope"], 2 / 3)
                     / (self.spec_grav
                        * self._grid.at_link["sediment_grain_size"]))
@@ -448,19 +442,29 @@ class Componentcita(Component):
 
     def _calculate_fraction_alluvium_cover(self, p0=0.05, p1=0.95):
         """
-        Calculates the p (or pa) alluvium cover from Zhang. It uses a
+        Calculates p, the alluvium cover from Zhang 2015. It uses a
         linear alluvium cover function. line between 0.05 and 0.95 from
         minimum (deep pockets) cover to maximum (effective) cover of the bed
         """
         self._grid.at_node["fraction_alluvium_cover"] = np.zeros_like(self._grid.at_node["fraction_alluvium_cover"])
         chi = self._grid.at_node["mean_alluvium_thickness"][self._unode] / self._grid.at_link["macroroughness"]
         threshold = (1 - p0) / (p1 - p0)
-        print(chi)
         cover = np.where(chi < threshold, p0 + (p1 - p0) * chi, np.ones_like(chi))
         self._grid.at_node["fraction_alluvium_cover"][self._unode] = cover
-        print(self._grid.at_node["fraction_alluvium_cover"])
 
-    def _calculate_sed_capacity(self, tau_star, tau_star_crit=0.0495):
+    def _calculate_corrected_fraction(self, p0=0.05):
+        """
+        Calculates pa, the corrected alluvium avaliable for transport from Zhang 2018.
+        it uses yet another linear function to remove non-zero transport under lack
+        of sediment conditions (in deep pockets).
+        """
+        p = self._grid.at_node["fraction_alluvium_cover"]
+        self._grid.at_node["fraction_alluvium_avaliable"] = (p - p0) / (1 - p0)
+        # make sure no negative alluvium is avaliable for transport
+        zeros = (self._grid.at_node["fraction_alluvium_avaliable"] < 0)
+        self._grid.at_node["fraction_alluvium_avaliable"][zeros] = 0
+
+    def _calculate_sed_capacity(self, tau_star, tau_star_crit=0.0495, omit=np.array([], dtype=np.int32)):
         """
         Calculates sediment flow capacity for a link and stores it at
         the upstream node field "sed_capacity". It uses the formula
@@ -468,27 +472,123 @@ class Componentcita(Component):
         the real issue is that the threshold of motion doesn't
         depend on the grain size which is concerning to me...
         """
+        sed_cap_omit = self._grid.at_node["sed_capacity"][omit]
         excess_shear = tau_star - self.sstau_star_c
         excess_shear[excess_shear < 0] = 0
         self._grid.at_node["sed_capacity"][self._unode] = (self.ssalpha
             * ((self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"])**0.5)
             * self._grid.at_link["sediment_grain_size"]
             * (excess_shear)**(self.ssna))
+        self._grid.at_node["sed_capacity"][omit] = sed_cap_omit
 
     def _bed_erosion(self, dt):
         """
-        Calculates bed erosion discretizing the differential equation
+        Applies bed erosion discretizing the differential equation
         of the bed in the upstream nodes (representing the link downstream).
-        Must be called after updating sediment capacity and
-        fraction of alluvium cover.
+        Must be called after updating sediment capacity,
+        fraction of alluvium cover and fraction of avaliable alluvium.
         """
+        pa = 0
+        if self.corrected:
+            pa = self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
+        else:
+            pa = self._grid.at_node["fraction_alluvium_cover"][self._unode]
         erosion = (self._grid.at_link["flood_intermittency"]
                    * self.wear_coefficient
                    * self._grid.at_node["sed_capacity"][self._unode]
-                   * self._grid.at_node["fraction_alluvium_cover"][self._unode]
-                   * (1 - self._grid.at_node["fraction_alluvium_cover"][self._unode])
-                   * dt)
+                   * pa * (1 - pa) * dt)
         self._grid.at_node["bedrock"][self._unode] = self._grid.at_node["bedrock"][self._unode] - erosion
+        self._grid.at_node["bedrock"][self._grid.at_node["bedrock"] < 0] = 0
+
+    def _mean_alluvium_change(self, dt):
+        """
+        Adds/Removes the difference in mean alluvium thickness by 
+        discretizing the differential equation of the alluvium
+        in the upstream nodes (representing the link downstream).
+        Must be called after updating sediment capacity,
+        fraction of alluvium cover and fraction of avaliable alluvium.
+        """
+        dx = self._grid.at_link["reach_length"]
+        dpq = 0
+        if self.corrected:
+            dpq = ((self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
+                    * self._grid.at_node["sed_capacity"][self._unode])
+                   - (self._grid.at_node["fraction_alluvium_avaliable"][self._dnode]
+                      * self._grid.at_node["sed_capacity"][self._dnode]))
+        else:
+            dpq = ((self._grid.at_node["fraction_alluvium_cover"][self._unode]
+                    * self._grid.at_node["sed_capacity"][self._unode])
+                   - (self._grid.at_node["fraction_alluvium_cover"][self._dnode]
+                      * self._grid.at_node["sed_capacity"][self._dnode]))
+
+        cover_dif = (-self._grid.at_link["flood_intermittency"]
+                     * dpq / dx
+                     * dt / (1 - self.porosity)
+                     / self._grid.at_node["fraction_alluvium_cover"][self._unode])
+        self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
+        self._grid.at_node["mean_alluvium_thickness"][self._grid.at_node["mean_alluvium_thickness"] < 0] = 0
+
+    def _sedimentograph(self, **kwargs):
+        Tc = 40
+        Th = 2.5
+        rh = Tc / Th
+        rl = 1 - rh
+        random_seed = 2
+        np.random.seed(random_seed)
+        low_random = 6
+        high_random = 12
+        step_random = 0.5
+        range_random = np.arange(low_random, high_random + step_random, step_random)
+        range_random_mean = np.mean(range_random)
+        qaf_m = 0.000834
+
+    def _set_boundary_conditions(self, out_topo, q_up=-1.0, t=-1.0, q_out=-1):
+        """
+        sets boundary conditions for incoming flux and outgoing nodes
+        as well as boundary conditions on the bed.
+
+        Currently it sets the incoming and outgoing flux using the
+        q_up and q_out parameters as a constant or a time function, but
+        it sets all sources/outlets at the same value.
+        self.sources is an int np list of the nodes that are sources and
+        similarly self.outlets for outlets.
+
+        out_topo is the elevation outlet boundary condition. Since
+        The component is not yet decided to be a single tree or a
+        forest then we shall assume there's a single outlet and so
+        self.outlets is a np attay with a single int
+
+        I should add a way of giving different values at different sources
+        but not today
+        """
+        # set outlets elevations
+        self._grid.at_node["bedrock"][self.outlets] = out_topo
+
+        # set fluxes in and out
+        flux_in = np.zeros_like(self.sources, dtype=np.float64)
+        flux_out = np.zeros_like(self.outlets, dtype=np.float64)
+        if isinstance(q_up, float):
+            if q_up < 0:
+                raise ValueError("negative flux at sources")
+            flux_in.fill(q_up)
+        else:
+            if t < 0:
+                raise ValueError("the t parameter was not provided")
+            flux_in.fill(q_up(t))
+
+        if isinstance(q_out, float):
+            if q_out < 0:
+                raise ValueError("negative flux at outlets")
+            flux_out.fill(q_out)
+        else:
+            if t < 0:
+                raise ValueError("the t parameter was not provided")
+            flux_out.fill(q_out(t))
+
+        self._grid.at_node["sed_capacity"][self.sources] = flux_in
+        self._grid.at_node["sed_capacity"][self.outlets] = flux_out
+
+
 
     @staticmethod
     def _preset_fields(ngrid, all_ones=False):
@@ -503,21 +603,23 @@ class Componentcita(Component):
         nodes1 = np.ones(ngrid.at_node.size)
         links1 = np.ones(ngrid.at_link.size)
         if all_ones:
-            ngrid.add_field("reach_length", links1, at="link")
-            ngrid.add_field("flood_discharge", links1, at="link")
-            ngrid.add_field("flood_intermittency", links1, at="link") 
-            ngrid.add_field("channel_width", links1, at="link")
-            ngrid.add_field("sediment_grain_size", links1, at="link")
-            ngrid.add_field("sed_capacity", nodes1, at="node")
-            ngrid.add_field("macroroughness", links1, at="link")
+            ngrid.add_field("reach_length", copy.copy(links1), at="link")
+            ngrid.add_field("flood_discharge", copy.copy(links1), at="link")
+            ngrid.add_field("flood_intermittency", copy.copy(links1), at="link")
+            ngrid.add_field("channel_width", copy.copy(links1), at="link")
+            ngrid.add_field("sediment_grain_size", copy.copy(links1), at="link")
+            ngrid.add_field("sed_capacity", copy.copy(nodes1), at="node")
+            ngrid.add_field("macroroughness", copy.copy(links1), at="link")
+            ngrid.add_field("mean_alluvium_thickness", copy.copy(nodes1), at="node")
         else:
-            ngrid.add_field("reach_length", 100 * links1, at="link")
-            ngrid.add_field("flood_discharge", 300 * links1, at="link")
-            ngrid.add_field("flood_intermittency", 0.05 * links1, at="link") 
-            ngrid.add_field("channel_width", 100 * links1, at="link")
-            ngrid.add_field("sediment_grain_size", 0.02 * links1, at="link")
-            ngrid.add_field("sed_capacity", 0 * nodes1, at="node")
-            ngrid.add_field("macroroughness", 1 * links1, at="link")
+            ngrid.add_field("reach_length", copy.copy(100 * links1), at="link")
+            ngrid.add_field("flood_discharge", copy.copy(300 * links1), at="link")
+            ngrid.add_field("flood_intermittency", copy.copy(0.05 * links1), at="link")
+            ngrid.add_field("channel_width", copy.copy(100 * links1), at="link")
+            ngrid.add_field("sediment_grain_size", copy.copy(0.02 * links1), at="link")
+            ngrid.add_field("sed_capacity", copy.copy(0 * nodes1), at="node")
+            ngrid.add_field("macroroughness", copy.copy(1 * links1), at="link")
+            ngrid.add_field("mean_alluvium_thickness", copy.copy(0.5 * nodes1), at="node")
 
     @staticmethod
     def _preset_network(which_network=0):
@@ -538,6 +640,4 @@ class Componentcita(Component):
                 flow_director = FlowDirectorSteepest(ngrid)
                 flow_director.run_one_step()
                 return ngrid, flow_director
-
-
 

@@ -12,8 +12,8 @@ from landlab.grid.create_network import network_grid_from_raster
 # import my DumbComponent
 from landlab.components import Componentcita as comp
 
-# grid setup
 
+# grid setup
 class setups:
 
     def __init__(self, shape, steepness=0.1):
@@ -22,14 +22,17 @@ class setups:
         self.steepness = steepness
         self.grid = [0] * (self.n * self.m) 
 
-    def line(self, horizontal=False):
-        if not horizontal:
-            self.grid = [0] * (3 * self.n)
+    def line(self, Vertical=False):
+        if not Vertical:
+            max = self.steepness * self.m * 1.2 + 0.01
+            self.grid = [max] * (3 * self.m)
+            for i in range(self.m):
+                self.grid[self.m + i] = self.steepness * (self.m - i)
+        else:
             max = self.steepness * self.n * 1.2 + 0.01
+            self.grid = [max] * (3 * self.n)
             for i in range(self.n):
-                self.grid[3 * i] = max
-                self.grid[3 * i + 1] = self.steepness * (self.n - i)
-                self.grid[3 * i + 2] = max
+                self.grid[3 * i + 1] = self.steepness * i
         return self.grid
 
     @staticmethod
@@ -45,10 +48,11 @@ class setups:
                         20.0, 20.0, 20.0, 20.0, 20.0, 20.0]
 
 
-#%%
-shape = (12, 3)
-slope = 0.000
-s = setups(shape, steepness=slope)
+# %%
+shape = (3, 3)
+reach_lenght = 1
+slope = 1  # 0.004
+s = setups(shape, steepness=slope * reach_lenght)
 # landlab grid
 rastergrid = RasterModelGrid(shape=shape, xy_spacing=1)
 rastergrid.add_field("topographic__elevation", s.line())
@@ -57,69 +61,73 @@ imshow_grid(
     rastergrid.at_node["topographic__elevation"],
     cmap='inferno_r')
 
-# flow director
-"""
-flowdirector = FlowDirectorSteepest(rastergrid, "topographic__elevation")
-rastergrid.add_ones("reach_length", at="link", units="m")
-"""
-
 # should I use the network to grid to create the simplified network? mmm
-network_grid = network_grid_from_raster(rastergrid)
+ngrid = network_grid_from_raster(rastergrid)
 print(rastergrid.fields())
-#%%
-graph.plot_graph(
-    network_grid,
-    at="node",
-    with_id=True
-)
 
-#%%
-graph.plot_graph(
-    network_grid,
-    at="link",
-    with_id=True
-)
-#%%
-discharge = 300  # m^3/s
-nodes1 = np.ones(network_grid.at_node.size)
-links1 = np.ones(network_grid.at_link.size)
-network_grid.add_field("reach_length", 100 * links1, at="link", clobber=True)  # 10km
-network_grid.add_field("flood_discharge", discharge * links1, at="link", clobber=True)  # 300 m^3/s
-network_grid.add_field("flood_intermittency", 0.05 * links1, at="link", clobber=True)  # flood intermittency 5%
-network_grid.add_field("channel_width", 100 * links1, at="link", clobber=True)  # channel_width 100m
-network_grid.add_field("sediment_grain_size", 2 * (10**-3) * links1, at="link", clobber=True)  # sediment sizes 2mm
-network_grid.add_field("sed_capacity", 0 * nodes1, at="node", clobber=True)  # sediment flow capacity
-network_grid.add_field("macroroughness", 1 * links1, at="link", clobber=True)  # 1m macroroughness
-flow_director = FlowDirectorSteepest(network_grid)
+# %%
+flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
-nety = comp.Componentcita(network_grid, flow_director, clobber=True)
-#%%
-network_grid["link"].keys()
-#%%
-network_grid["node"].keys()
-# %%
-nety.run_one_step(dt=100)
+comp.Componentcita._preset_fields(ngrid, all_ones=True)
+nety = comp.Componentcita(ngrid, flow_director, clobber=True)
 
 # %%
-network_grid.at_node["sed_capacity"][10] = 1
+graph.plot_graph(ngrid, at="node,link", with_id=True)
+print(ngrid["link"].keys())
+print(ngrid["node"].keys())
+
 # %%
+print(ngrid["node"]["bedrock"])
+print(ngrid["node"]["mean_alluvium_thickness"])
+print(ngrid["node"]["sed_capacity"])
+# %%
+t = 0
+# %%
+dt = 1
+t += dt
+# nety._set_boundary_conditions(0,q_up=0.01, t=t, )
+nety.run_one_step(dt)
+
+
+# %%
+
+
+
+
+
+
+
+
+
+
+
+
+
+# %%
+# trying out the model over 100 years
 fig1 = plt.figure(1)
 fig2 = plt.figure(2)
 
-xs = list(range(11))
-for time in range(10):
-    dt = 60*60*24*365
-    plt.figure(fig1);
-    bed = network_grid.at_node["bedrock"][xs]
-    plt.plot(xs, bed, label=f"iter {time}");
+xs = list(range(n - 1))
+dt = 0.001 * 365.25
+year = 100
+sed_source = np.array([0])
+total_time = year * 1000  # in years
+# sedimentograph
 
-    plt.figure(fig2);
-    alluvium = network_grid.at_node["mean_alluvium_thickness"][xs]
-    plt.plot(xs, alluvium, label=f"iter {time}");
-    
-    network_grid.at_node["sed_capacity"][10] = network_grid.at_node["sed_capacity"][9]
+qt = 1
+ngrid.at_node["sed_capacity"][sed_source] = qt
 
-    nety.run_one_step(dt=dt, urate=0)
+for time in range(total_time):
+    if (time % (10 * year)) == 0:
+        plt.figure(fig1)
+        bed = ngrid.at_node["bedrock"][xs]
+        plt.plot(xs, bed, label=f"iter {time}")
+
+        plt.figure(fig2)
+        alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
+        plt.plot(xs, alluvium, label=f"iter {time}")
+    nety.run_one_step(dt=dt, urate=0, omit=sed_source)
 
 # %%
 plt.figure(fig1)
