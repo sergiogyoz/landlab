@@ -1,4 +1,4 @@
-#%%
+# %%
 import matplotlib.pyplot as plt
 import numpy as np
 import copy
@@ -20,7 +20,7 @@ class setups:
         self.n = shape[0]
         self.m = shape[1]
         self.steepness = steepness
-        self.grid = [0] * (self.n * self.m) 
+        self.grid = [0] * (self.n * self.m)
 
     def line(self, Vertical=False):
         if not Vertical:
@@ -49,9 +49,9 @@ class setups:
 
 
 # %%
-shape = (3, 3)
+shape = (3, 20)
 reach_lenght = 1
-slope = 1  # 0.004
+slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
 # landlab grid
 rastergrid = RasterModelGrid(shape=shape, xy_spacing=1)
@@ -77,16 +77,13 @@ print(ngrid["link"].keys())
 print(ngrid["node"].keys())
 
 # %%
-print(ngrid["node"]["bedrock"])
-print(ngrid["node"]["mean_alluvium_thickness"])
-print(ngrid["node"]["sed_capacity"])
-# %%
 t = 0
 # %%
 dt = 1
 t += dt
 # nety._set_boundary_conditions(0,q_up=0.01, t=t, )
 nety.run_one_step(dt)
+
 
 
 # %%
@@ -108,34 +105,51 @@ nety.run_one_step(dt)
 fig1 = plt.figure(1)
 fig2 = plt.figure(2)
 
-xs = list(range(n - 1))
+n = len(ngrid.at_node["sed_capacity"])
+xs = list(range(n))
 dt = 0.001 * 365.25
-year = 100
+year = 0.001
+record_t = 0.001
 sed_source = np.array([0])
-total_time = year * 1000  # in years
-# sedimentograph
+total_time = int(year * 1000)
+# downstream distance
+distance = np.zeros_like(ngrid.at_node["sed_capacity"])
+distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
 
+# sedimentograph initial pulse
 qt = 1
 ngrid.at_node["sed_capacity"][sed_source] = qt
 
 for time in range(total_time):
-    if (time % (10 * year)) == 0:
+#    print(ngrid.at_node["sed_capacity"])
+    print(time)
+    if (time % (1000 * record_t)) == 0:
         plt.figure(fig1)
         bed = ngrid.at_node["bedrock"][xs]
-        plt.plot(xs, bed, label=f"iter {time}")
+        plt.plot(distance, bed, label=f"t= {time/1000:.3f} and i ={time}")
 
         plt.figure(fig2)
         alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
-        plt.plot(xs, alluvium, label=f"iter {time}")
-    nety.run_one_step(dt=dt, urate=0, omit=sed_source)
+        plt.plot(distance, np.log10(alluvium), label=f"t= {time/1000:.3f} and i ={time}")
+    nety.run_one_step(dt=dt)  #,omit=sed_source)
 
 # %%
 plt.figure(fig1)
+plt.figure(fig1)
+plt.xlabel("downstream distance")
+plt.ylabel("bedrock elevation (m)")
 plt.legend()
 plt.show()
 
 plt.figure(fig2)
+plt.xlabel("downstream distance")
+plt.ylabel("alluvium thickness (m)")
 plt.legend()
 plt.show()
+
+# %%
+print(ngrid["node"]["bedrock"])
+print(ngrid["node"]["mean_alluvium_thickness"])
+print(ngrid["node"]["sed_capacity"])
 
 # %%

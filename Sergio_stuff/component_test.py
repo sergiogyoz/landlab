@@ -1,4 +1,4 @@
-#%%
+# %%
 import numpy as np
 
 from landlab import NetworkModelGrid
@@ -162,7 +162,7 @@ def run_all_test():
 # %%
 run_all_test()
 
-#%%
+# %%
 import numpy as np
 
 from landlab import NetworkModelGrid

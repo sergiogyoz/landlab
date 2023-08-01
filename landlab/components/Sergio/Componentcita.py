@@ -266,7 +266,7 @@ class Componentcita(Component):
 
         Examples
         --------
-        
+
         """
         super().__init__(grid)
 
@@ -301,8 +301,8 @@ class Componentcita(Component):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
             raise ValueError(msg)
 
-        # self._fd = flow_director  # should I assume flow routing happens outside for now
-        # supported flow directors, ommited for now
+        # flow routing should happen outside for now
+        # supported flow directors
         if not isinstance(flow_director, FlowDirectorSteepest):
             msg = (
                 "NetworkSedimentTransporter: flow_director must be "
@@ -324,9 +324,9 @@ class Componentcita(Component):
         # update channel slopes
         self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
-        #  don't know yet how to handle these
+        # don't know yet how to handle these
 
-    def run_one_step(self, dt, urate=-1, omit=np.array([], np.int32)):
+    def run_one_step(self, dt, omit=np.array([], np.int32)):
         """
         It updates the mean alluvium thickness and the bedrock elevation based
         on the model by Zhang et al (2015,2018)
@@ -470,16 +470,23 @@ class Componentcita(Component):
         the upstream node field "sed_capacity". It uses the formula
         bla bla bla and ignores tau star crit
         the real issue is that the threshold of motion doesn't
-        depend on the grain size which is concerning to me...
+        depend on the grain size which concerns me...
         """
         sed_cap_omit = self._grid.at_node["sed_capacity"][omit]
         excess_shear = tau_star - self.sstau_star_c
-        excess_shear[excess_shear < 0] = 0
-        self._grid.at_node["sed_capacity"][self._unode] = (self.ssalpha
-            * ((self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"])**0.5)
+        zeromask = np.ones_like(excess_shear)
+        zeromask[excess_shear < 0] = 0
+        excess_shear = excess_shear * zeromask
+
+        self._grid.at_node["sed_capacity"][self._unode] = (
+            self.ssalpha * zeromask
+            * np.power(self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"], 0.5)
             * self._grid.at_link["sediment_grain_size"]
-            * (excess_shear)**(self.ssna))
+            * np.power(excess_shear, self.ssna))
         self._grid.at_node["sed_capacity"][omit] = sed_cap_omit
+        nanarr = np.isnan(self._grid.at_node["sed_capacity"])
+        if np.any(nanarr):
+            raise ArithmeticError("A shear calculation yield nans")
 
     def _bed_erosion(self, dt):
         """
