@@ -348,8 +348,10 @@ class Componentcita(Component):
     def _add_upstream_downstream_nodes(self):
         """
         It adds the fields "upstream_node" and "downstream_node" to links.
-        each field has the id of the upstream and downstream node based on the 
-        Network model node ids. Array index is in correspondance with links array index.
+        It also adds the node field "flow__sender_node". Each field has
+        the id of the upstream and downstream node based on the Network
+        model node ids. Array index is in correspondance with links 
+        index for link fields and nodes index for node fields.
         """
         self._grid.nodes_at_link
         # making a copy instead of a reference.... I'm unsure yet if I should
@@ -372,6 +374,17 @@ class Componentcita(Component):
             "downstream_node",
             downstream_nodes,
             at="link"
+        )
+        # adding the sender nodes
+        node = np.arange(0, self._grid["node"].size, 1)
+        sender = np.arange(0, self._grid["node"].size, 1)
+        receiver = copy.copy(self._grid["node"]["flow__receiver_node"])
+        non_idem = (receiver != node)
+        sender[receiver[non_idem]] = node[non_idem]
+        self._grid.add_field(
+            "flow__sender_node",
+            sender,
+            at="node"
         )
 
     def _update_channel_slopes(self):
@@ -549,7 +562,7 @@ class Componentcita(Component):
         range_random_mean = np.mean(range_random)
         qaf_m = 0.000834
 
-    def _set_boundary_conditions(self, out_topo, q_up=-1.0, t=-1.0, q_out=-1):
+    def _set_boundary_conditions(self, open_outlet=False, q_up=-1.0, t=-1.0, q_out=-1):
         """
         sets boundary conditions for incoming flux and outgoing nodes
         as well as boundary conditions on the bed.
@@ -569,7 +582,7 @@ class Componentcita(Component):
         but not today
         """
         # set outlets elevations
-        self._grid.at_node["bedrock"][self.outlets] = out_topo
+        self._grid.at_node["bedrock"][self.outlets]
 
         # set fluxes in and out
         flux_in = np.zeros_like(self.sources, dtype=np.float64)
