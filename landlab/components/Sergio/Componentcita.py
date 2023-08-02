@@ -319,8 +319,8 @@ class Componentcita(Component):
         # and flow__sender_node to nodes
         self._add_flow_sender_node()
         # adds outlets and sources
-        self.outlets = self._find_outlets
-        self.sources = self._find_sources
+        self.outlets = self._find_outlets()
+        self.sources = self._find_sources()
         # add ouput fields
         self.initialize_output_fields()
         # update channel slopes
@@ -346,6 +346,8 @@ class Componentcita(Component):
         self._mean_alluvium_change(dt)
         # update slopes
         self._update_channel_slopes()
+        # boundary conditions
+        self._boundary_conditions()
 
     def _add_upstream_downstream_nodes(self):
         """
@@ -381,8 +383,9 @@ class Componentcita(Component):
         """
         Adds the node field "flow__sender_node". This field has the
         upstream node based on the flow direction and IS ONLY MEANT
-        to be used for finding the upstream source nodes. For junctions
-        it returns only a single id ignoring one of the two tributaries.
+        to be used for finding the upstream source nodes and the
+        previous to last node downstream. At junctions it returns
+        only a single id ignoring one of the two tributaries.
         """
         node = np.arange(0, self._grid["node"].size, 1)
         sender = np.arange(0, self._grid["node"].size, 1)
@@ -399,12 +402,16 @@ class Componentcita(Component):
         """
         Finds the outlets node's IDs of a river network created with 
         the flow director steepest component. Its dependency to the
-        flow director are the flags for sinks, and the flow directions.
+        flow director are the flow directions from "flow__receiver_node"
+        but these can be provided independently if needed.
+
+        Warning! Landlab flags outlets as sinks and therefore are
+        undistinguishable.
         """
         nodes = np.arange(0, self._grid["node"].size, 1)
-        flow2self = (self._grid["node"]["flow__receiver_node"]==nodes)
-        not_sink = np.logical_not(self._grid["node"]["flow__sink_flag"])
-        return nodes[flow2self & not_sink]
+        flow2self = (self._grid["node"]["flow__receiver_node"] == nodes)
+        # not_sink = np.logical_not(self._grid["node"]["flow__sink_flag"])
+        return nodes[flow2self]  # & not_sink]
 
     def _find_sources(self):
         """
@@ -413,7 +420,7 @@ class Componentcita(Component):
         flow director are the flags for sinks, and the flow directions.
         """
         nodes = np.arange(0, self._grid["node"].size, 1)
-        flow_from_none = (self._grid["node"]["flow__sender_node"]==nodes)
+        flow_from_none = (self._grid["node"]["flow__sender_node"] == nodes)
         return nodes[flow_from_none]
 
     def _update_channel_slopes(self):
@@ -591,10 +598,11 @@ class Componentcita(Component):
         range_random_mean = np.mean(range_random)
         qaf_m = 0.000834
 
-    def _set_boundary_conditions(self, open_outlet=False, q_up=-1.0, t=-1.0, q_out=-1):
+    def _boundary_conditions(self, open_outlet=True, q_in=-1.0, t=-1.0, q_out=-1):
         """
-        sets boundary conditions for incoming flux and outgoing nodes
-        as well as boundary conditions on the bed.
+        sets boundary conditions for incoming flux and outgoing nodes.
+        It currently defaults to an open boundary downstream and a 
+        maximum alluvium of 1 L (1 macro roughtness unit for full cover).
 
         Currently it sets the incoming and outgoing flux using the
         q_up and q_out parameters as a constant or a time function, but
@@ -609,21 +617,40 @@ class Componentcita(Component):
 
         I should add a way of giving different values at different sources
         but not today
-        """
-        # set outlets elevations
-        self._grid.at_node["bedrock"][self.outlets]
 
-        # set fluxes in and out
+        Warning!
+        it assumes the previous to last downstream node is unique (no
+        junctions meet right at the outlet)
+        """
+
+        # Default case with open boundaries
         flux_in = np.zeros_like(self.sources, dtype=np.float64)
         flux_out = np.zeros_like(self.outlets, dtype=np.float64)
-        if isinstance(q_up, float):
-            if q_up < 0:
+        if open_outlet:
+            # Assuming the previous to last node is not ambiguous
+            prev_node = self._grid.at_node["flow__sender_node"][self.outlets]
+            prev_link = self._grid.at_node["flow__link_to_receiver_node"][prev_node]
+            flux_out = self._grid.at_node["sed_capacity"][prev_node]
+            self._grid.at_node["sed_capacity"][self.outlets] = flux_out
+            # Prevent the allivium to go over 1 L
+            over_alluvium = (self._grid.at_node["mean_alluvium_thickness"][prev_node]
+                             > self._grid.at_link["macroroughness"][prev_link])
+            out_alluvium = np.where(
+                over_alluvium,
+                self._grid.at_link["macroroughness"][prev_link],
+                self._grid.at_node["mean_alluvium_thickness"][prev_node])
+            self._grid.at_node["mean_alluvium_thickness"][self.outlets] = out_alluvium
+            return
+
+        # otherwise set fluxes in and out
+        if isinstance(q_in, float):
+            if q_in < 0:
                 raise ValueError("negative flux at sources")
-            flux_in.fill(q_up)
+            flux_in.fill(q_in)
         else:
             if t < 0:
                 raise ValueError("the t parameter was not provided")
-            flux_in.fill(q_up(t))
+            flux_in.fill(q_in(t))
 
         if isinstance(q_out, float):
             if q_out < 0:

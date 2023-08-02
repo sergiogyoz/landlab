@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import copy
+import math
 
 from landlab import RasterModelGrid, imshow_grid
 from landlab import NetworkModelGrid
@@ -76,65 +77,47 @@ graph.plot_graph(ngrid, at="node,link", with_id=True)
 print(ngrid["link"].keys())
 print(ngrid["node"].keys())
 
-# %%
-t = 0
-# %%
-dt = 1
-t += dt
-# nety._set_boundary_conditions(0,q_up=0.01, t=t, )
-nety.run_one_step(dt)
-
-
 
 # %%
-
-
-
-
-
-
-
-
-
-
-
-
-
-# %%
-# trying out the model over 100 years
 fig1 = plt.figure(1)
 fig2 = plt.figure(2)
+fig3 = plt.figure(3)
 
 n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
-dt = 0.001 * 365.25
-year = 0.001
-record_t = 0.001
+fraction = 0.001
+year = 365.25
+dt = fraction * year
+total_time = 0.001 * year  # how long to simulate
+record_t = 1 * fraction  # how often to record
 sed_source = np.array([0])
-total_time = int(year * 1000)
-# downstream distance
+i = 0
+# downstream distance for plots
 distance = np.zeros_like(ngrid.at_node["sed_capacity"])
 distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
-
 # sedimentograph initial pulse
-qt = 1
+qt = 0.04342996
 ngrid.at_node["sed_capacity"][sed_source] = qt
 
-for time in range(total_time):
-#    print(ngrid.at_node["sed_capacity"])
-    print(time)
-    if (time % (1000 * record_t)) == 0:
-        plt.figure(fig1)
+# %%
+for time in np.arange(0, total_time, dt):
+    # print(ngrid.at_node["sed_capacity"])
+    if math.isclose(time % record_t, 0, abs_tol=dt / 3):
+        plt.figure(fig1);
         bed = ngrid.at_node["bedrock"][xs]
-        plt.plot(distance, bed, label=f"t= {time/1000:.3f} and i ={time}")
+        plt.plot(distance, bed, label=f"t= {time:.3f} and i ={i}");
 
-        plt.figure(fig2)
+        plt.figure(fig2);
         alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
-        plt.plot(distance, np.log10(alluvium), label=f"t= {time/1000:.3f} and i ={time}")
-    nety.run_one_step(dt=dt)  #,omit=sed_source)
+        plt.plot(distance, alluvium, label=f"t= {time:.3f} and i ={i}");
+
+        plt.figure(fig3);
+        plt.plot(distance, np.log10(alluvium), label=f"t= {time:.3f} and i ={i}");
+
+    nety.run_one_step(dt=dt)  # ,omit=sed_source)
+    i = i + 1
 
 # %%
-plt.figure(fig1)
 plt.figure(fig1)
 plt.xlabel("downstream distance")
 plt.ylabel("bedrock elevation (m)")
@@ -144,6 +127,12 @@ plt.show()
 plt.figure(fig2)
 plt.xlabel("downstream distance")
 plt.ylabel("alluvium thickness (m)")
+plt.legend()
+plt.show()
+
+plt.figure(fig3)
+plt.xlabel("downstream distance")
+plt.ylabel("log alluvium thickness (log m)")
 plt.legend()
 plt.show()
 
