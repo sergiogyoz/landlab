@@ -292,9 +292,6 @@ class Componentcita(Component):
         self.p0 = kwargs["p0"] if "p0" in kwargs else 0.05
         self.p1 = kwargs["p1"] if "p1" in kwargs else 0.95
 
-        self.sources = np.array([], dtype=np.int32)
-        self.outlets = np.array([], dtype=np.int32)
-
         # deep pockets cover and maximum effective cover
         # it must be a NetworkModelGrid
         if not isinstance(grid, NetworkModelGrid):
@@ -319,6 +316,11 @@ class Componentcita(Component):
             self._add_upstream_downstream_nodes()
         self._unode = self._grid.at_link["upstream_node"]
         self._dnode = self._grid.at_link["downstream_node"]
+        # and flow__sender_node to nodes
+        self._add_flow_sender_node()
+        # adds outlets and sources
+        self.outlets = self._find_outlets
+        self.sources = self._find_sources
         # add ouput fields
         self.initialize_output_fields()
         # update channel slopes
@@ -348,10 +350,9 @@ class Componentcita(Component):
     def _add_upstream_downstream_nodes(self):
         """
         It adds the fields "upstream_node" and "downstream_node" to links.
-        It also adds the node field "flow__sender_node". Each field has
-        the id of the upstream and downstream node based on the Network
-        model node ids. Array index is in correspondance with links 
-        index for link fields and nodes index for node fields.
+        The fields have the id of the upstream and downstream node from 
+        the link based on the Network model node ids. Array index is in
+        correspondance with links index for link fields.
         """
         self._grid.nodes_at_link
         # making a copy instead of a reference.... I'm unsure yet if I should
@@ -375,7 +376,14 @@ class Componentcita(Component):
             downstream_nodes,
             at="link"
         )
-        # adding the sender nodes
+
+    def _add_flow_sender_node(self):
+        """
+        Adds the node field "flow__sender_node". This field has the
+        upstream node based on the flow direction and IS ONLY MEANT
+        to be used for finding the upstream source nodes. For junctions
+        it returns only a single id ignoring one of the two tributaries.
+        """
         node = np.arange(0, self._grid["node"].size, 1)
         sender = np.arange(0, self._grid["node"].size, 1)
         receiver = copy.copy(self._grid["node"]["flow__receiver_node"])
@@ -386,6 +394,27 @@ class Componentcita(Component):
             sender,
             at="node"
         )
+
+    def _find_outlets(self):
+        """
+        Finds the outlets node's IDs of a river network created with 
+        the flow director steepest component. Its dependency to the
+        flow director are the flags for sinks, and the flow directions.
+        """
+        nodes = np.arange(0, self._grid["node"].size, 1)
+        flow2self = (self._grid["node"]["flow__receiver_node"]==nodes)
+        not_sink = np.logical_not(self._grid["node"]["flow__sink_flag"])
+        return nodes[flow2self & not_sink]
+
+    def _find_sources(self):
+        """
+        Finds the sources node's IDs of a river network created with 
+        the flow director steepest component. Its dependency to the
+        flow director are the flags for sinks, and the flow directions.
+        """
+        nodes = np.arange(0, self._grid["node"].size, 1)
+        flow_from_none = (self._grid["node"]["flow__sender_node"]==nodes)
+        return nodes[flow_from_none]
 
     def _update_channel_slopes(self):
         """
