@@ -317,7 +317,8 @@ class Componentcita(Component):
         self._unode = self._grid.at_link["upstream_node"]
         self._dnode = self._grid.at_link["downstream_node"]
         # and flow__sender_node to nodes
-        self._add_flow_sender_node()
+        if not self._grid.has_field("flow__sender_node", at="node"):
+            self._add_flow_sender_node()
         # adds outlets and sources
         self.outlets = self._find_outlets()
         self.sources = self._find_sources()
@@ -352,7 +353,7 @@ class Componentcita(Component):
     def _add_upstream_downstream_nodes(self):
         """
         It adds the fields "upstream_node" and "downstream_node" to links.
-        The fields have the id of the upstream and downstream node from 
+        The fields have the id of the upstream and downstream node from
         the link based on the Network model node ids. Array index is in
         correspondance with links index for link fields.
         """
@@ -400,7 +401,7 @@ class Componentcita(Component):
 
     def _find_outlets(self):
         """
-        Finds the outlets node's IDs of a river network created with 
+        Finds the outlets node's IDs of a river network created with
         the flow director steepest component. Its dependency to the
         flow director are the flow directions from "flow__receiver_node"
         but these can be provided independently if needed.
@@ -415,7 +416,7 @@ class Componentcita(Component):
 
     def _find_sources(self):
         """
-        Finds the sources node's IDs of a river network created with 
+        Finds the sources node's IDs of a river network created with
         the flow director steepest component. Its dependency to the
         flow director are the flags for sinks, and the flow directions.
         """
@@ -439,7 +440,7 @@ class Componentcita(Component):
             / self._grid.at_link["reach_length"])
 
         S = Sa + Sb
-        S[S < 0] = 0
+        S[S < 0] = 0  # as implemented on the original code
         self._grid.at_link["channel_slope"] = S
 
     def _calculate_flow_depths(self):
@@ -459,13 +460,14 @@ class Componentcita(Component):
         conditions based on the hydraulic relations derived by Parker
         tau_star = [Q^2 / g*B^2*Cz^2]^(1/3) * S^(2/3) / (R * D)
         """
-        tau_star = (np.power((self.Q * self.Q)
-                             / (self.G * self.Cz * self.Cz
-                                * np.square(self._grid.at_link["channel_width"])
-                                ), 1 / 3)
-                    * np.power(self._grid.at_link["channel_slope"], 2 / 3)
-                    / (self.spec_grav
-                       * self._grid.at_link["sediment_grain_size"]))
+        tau_star = (np.power(
+            np.square(self.Q / self._grid.at_link["channel_width"])
+            / (self.Cz * self.Cz)
+            / self.G,
+            1 / 3)
+            * np.power(self._grid.at_link["channel_slope"], 2 / 3)
+            / self.spec_grav
+            / self._grid.at_link["sediment_grain_size"])
         return tau_star
 
     def _critical_shear_star(self, method="Parker"):
@@ -495,10 +497,16 @@ class Componentcita(Component):
         linear alluvium cover function. line between 0.05 and 0.95 from
         minimum (deep pockets) cover to maximum (effective) cover of the bed
         """
-        self._grid.at_node["fraction_alluvium_cover"] = np.zeros_like(self._grid.at_node["fraction_alluvium_cover"])
-        chi = self._grid.at_node["mean_alluvium_thickness"][self._unode] / self._grid.at_link["macroroughness"]
-        threshold = (1 - p0) / (p1 - p0)
-        cover = np.where(chi < threshold, p0 + (p1 - p0) * chi, np.ones_like(chi))
+
+        if np.any(self._grid.at_node["mean_alluvium_thickness"][self._unode] < 0):
+            raise ArithmeticError("A calculation resulted in negative mean_alluvium_thickness")
+        chi = (
+            self._grid.at_node["mean_alluvium_thickness"][self._unode]
+            / self._grid.at_link["macroroughness"])
+        cover = p0 + chi * (p1 - p0)
+        full_cover = (1 - p0) / (p1 - p0)
+        cover = np.where(chi > full_cover, np.ones_like(cover), cover)
+        cover = np.where(chi < 0, np.zeros_like(cover), cover)
         self._grid.at_node["fraction_alluvium_cover"][self._unode] = cover
 
     def _calculate_corrected_fraction(self, p0=0.05):
@@ -507,7 +515,7 @@ class Componentcita(Component):
         it uses yet another linear function to remove non-zero transport under lack
         of sediment conditions (in deep pockets).
         """
-        p = self._grid.at_node["fraction_alluvium_cover"]
+        p = copy.copy(self._grid.at_node["fraction_alluvium_cover"])
         self._grid.at_node["fraction_alluvium_avaliable"] = (p - p0) / (1 - p0)
         # make sure no negative alluvium is avaliable for transport
         zeros = (self._grid.at_node["fraction_alluvium_avaliable"] < 0)
@@ -524,18 +532,18 @@ class Componentcita(Component):
         sed_cap_omit = self._grid.at_node["sed_capacity"][omit]
         excess_shear = tau_star - self.sstau_star_c
         zeromask = np.ones_like(excess_shear)
-        zeromask[excess_shear < 0] = 0
+        zeromask[excess_shear < 0] = 0  # as in the original code
         excess_shear = excess_shear * zeromask
 
         self._grid.at_node["sed_capacity"][self._unode] = (
-            self.ssalpha * zeromask
-            * np.power(self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"], 0.5)
+            np.power(self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"], 0.5)
             * self._grid.at_link["sediment_grain_size"]
-            * np.power(excess_shear, self.ssna))
+            * (self.ssalpha
+               * np.power(excess_shear, self.ssna)))
         self._grid.at_node["sed_capacity"][omit] = sed_cap_omit
         nanarr = np.isnan(self._grid.at_node["sed_capacity"])
         if np.any(nanarr):
-            raise ArithmeticError("A shear calculation yield nans")
+            raise ArithmeticError("A shear excess calculation yield nans")
 
     def _bed_erosion(self, dt):
         """
@@ -558,7 +566,7 @@ class Componentcita(Component):
 
     def _mean_alluvium_change(self, dt):
         """
-        Adds/Removes the difference in mean alluvium thickness by 
+        Adds/Removes the difference in mean alluvium thickness by
         discretizing the differential equation of the alluvium
         in the upstream nodes (representing the link downstream).
         Must be called after updating sediment capacity,
@@ -601,7 +609,7 @@ class Componentcita(Component):
     def _boundary_conditions(self, open_outlet=True, q_in=-1.0, t=-1.0, q_out=-1):
         """
         sets boundary conditions for incoming flux and outgoing nodes.
-        It currently defaults to an open boundary downstream and a 
+        It currently defaults to an open boundary downstream and a
         maximum alluvium of 1 L (1 macro roughtness unit for full cover).
 
         Currently it sets the incoming and outgoing flux using the
@@ -700,7 +708,7 @@ class Componentcita(Component):
     @staticmethod
     def _preset_network(which_network=0):
         """
-        returns a network grid and the associated flow director from a list of 
+        returns a network grid and the associated flow director from a list of
         predefined networks for use on small examples and tests. Currently only 1.
         """
         match which_network:

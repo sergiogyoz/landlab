@@ -50,8 +50,8 @@ class setups:
 
 
 # %%
-shape = (3, 20)
-reach_lenght = 1
+shape = (3, 101)
+reach_lenght = 200
 slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
 # landlab grid
@@ -69,7 +69,8 @@ print(rastergrid.fields())
 # %%
 flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
-comp.Componentcita._preset_fields(ngrid, all_ones=True)
+# %%
+comp.Componentcita._preset_fields(ngrid)
 nety = comp.Componentcita(ngrid, flow_director, clobber=True)
 
 # %%
@@ -86,17 +87,17 @@ fig3 = plt.figure(3)
 n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
 fraction = 0.001
-year = 365.25
+year = 365.25 * 24 * 60 * 60  # in seconds
 dt = fraction * year
-total_time = 0.001 * year  # how long to simulate
-record_t = 1 * fraction  # how often to record
+total_time = 1000 * year  # how long to simulate in years
+record_t = 200 * year  # how often to record in years
 sed_source = np.array([0])
 i = 0
 # downstream distance for plots
 distance = np.zeros_like(ngrid.at_node["sed_capacity"])
 distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
 # sedimentograph initial pulse
-qt = 0.04342996
+qt = 0.00834
 ngrid.at_node["sed_capacity"][sed_source] = qt
 
 # %%
@@ -105,14 +106,14 @@ for time in np.arange(0, total_time, dt):
     if math.isclose(time % record_t, 0, abs_tol=dt / 3):
         plt.figure(fig1);
         bed = ngrid.at_node["bedrock"][xs]
-        plt.plot(distance, bed, label=f"t= {time:.3f} and i ={i}");
+        plt.plot(distance, bed, label=f"t= {time/record_t:.1f} and i ={i}");
 
         plt.figure(fig2);
         alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
-        plt.plot(distance, alluvium, label=f"t= {time:.3f} and i ={i}");
+        plt.plot(distance, alluvium, label=f"t= {time/record_t:.1f} and i ={i}");
 
         plt.figure(fig3);
-        plt.plot(distance, np.log10(alluvium), label=f"t= {time:.3f} and i ={i}");
+        plt.plot(distance, np.log10(alluvium), label=f"t= {time/record_t:.1f} and i ={i}");
 
     nety.run_one_step(dt=dt)  # ,omit=sed_source)
     i = i + 1
