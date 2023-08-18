@@ -50,7 +50,7 @@ class setups:
 
 
 # %%
-shape = (3, 101)
+shape = (3, 11)
 reach_lenght = 200
 slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
@@ -80,17 +80,18 @@ print(ngrid["node"].keys())
 
 
 # %%
+# prep for model
 fig1 = plt.figure(1)
 fig2 = plt.figure(2)
 fig3 = plt.figure(3)
+figsed = plt.figure(4)
 
 n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
-fraction = 0.001
 year = 365.25 * 24 * 60 * 60  # in seconds
-dt = fraction * year
-total_time = 1000 * year  # how long to simulate in years
-record_t = 200 * year  # how often to record in years
+dt = 0.001 * year
+total_time = 320 * year  # how long to simulate in years
+record_t = 1 * year  # how often to record in years
 sed_source = np.array([0])
 i = 0
 # downstream distance for plots
@@ -99,21 +100,41 @@ distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
 # sedimentograph initial pulse
 qt = 0.00834
 ngrid.at_node["sed_capacity"][sed_source] = qt
+times = np.arange(0, total_time, dt)
 
 # %%
-for time in np.arange(0, total_time, dt):
+# sedimentograph at the source nodes
+fraction_at_high_feed = 0.0625
+scale_of_high_feed = 4
+cycle_period = 40 * year
+random_seed = 2
+sedgraph = comp.Componentcita.sedimentograph(
+    time=times, dt=dt,
+    Tc=cycle_period,
+    rh=fraction_at_high_feed,
+    rqh=scale_of_high_feed,
+    random=True,
+    random_seed=random_seed)
+plt.figure(figsed)
+plt.plot(times / year, sedgraph,
+         label=f"rh ={fraction_at_high_feed}, rqh ={scale_of_high_feed}")
+plt.title(f"Sedimentograph")
+plt.legend()
+
+# %%
+for time in times:
     # print(ngrid.at_node["sed_capacity"])
     if math.isclose(time % record_t, 0, abs_tol=dt / 3):
-        plt.figure(fig1);
+        plt.figure(fig1)
         bed = ngrid.at_node["bedrock"][xs]
-        plt.plot(distance, bed, label=f"t= {time/record_t:.1f} and i ={i}");
+        plt.plot(distance, bed, label=f"t= {time/record_t:.1f} and i ={i}")
 
-        plt.figure(fig2);
+        plt.figure(fig2)
         alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
-        plt.plot(distance, alluvium, label=f"t= {time/record_t:.1f} and i ={i}");
+        plt.plot(distance, alluvium, label=f"t= {time/record_t:.1f} and i ={i}")
 
-        plt.figure(fig3);
-        plt.plot(distance, np.log10(alluvium), label=f"t= {time/record_t:.1f} and i ={i}");
+        plt.figure(fig3)
+        plt.plot(distance, np.log10(alluvium), label=f"t= {time/record_t:.1f} and i ={i}")
 
     nety.run_one_step(dt=dt)  # ,omit=sed_source)
     i = i + 1

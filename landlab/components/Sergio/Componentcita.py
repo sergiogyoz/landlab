@@ -592,20 +592,6 @@ class Componentcita(Component):
         self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
         self._grid.at_node["mean_alluvium_thickness"][self._grid.at_node["mean_alluvium_thickness"] < 0] = 0
 
-    def _sedimentograph(self, **kwargs):
-        Tc = 40
-        Th = 2.5
-        rh = Tc / Th
-        rl = 1 - rh
-        random_seed = 2
-        np.random.seed(random_seed)
-        low_random = 6
-        high_random = 12
-        step_random = 0.5
-        range_random = np.arange(low_random, high_random + step_random, step_random)
-        range_random_mean = np.mean(range_random)
-        qaf_m = 0.000834
-
     def _boundary_conditions(self, open_outlet=True, q_in=-1.0, t=-1.0, q_out=-1):
         """
         sets boundary conditions for incoming flux and outgoing nodes.
@@ -672,7 +658,82 @@ class Componentcita(Component):
         self._grid.at_node["sed_capacity"][self.sources] = flux_in
         self._grid.at_node["sed_capacity"][self.outlets] = flux_out
 
+    @staticmethod
+    def sedimentograph(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
+        """
+        Creates a sedimentograph to use as the feed on sources for the 
+        network.
 
+        Parameters
+        ----------
+        time: float or np.array
+            (required) The total time in seconds or an array of times with
+            step dt.
+        dt: float
+            (required) time step in seconds.
+        Tc: float
+            (required) Time of a cycle (period) in seconds.
+        rh: float
+            fraction of time at high rate in a cycle in seconds. Defaults
+            to 1/4
+        qm: float
+            Mean sediment feed rate over a cycle. Width averaged in m^2/s.
+            Defaults to 0.000834
+        rqh: float
+            proportion of high feed sediment rate to mean feed sediment rate.
+            Defaults to 1 (qh = qm)
+        random: bool
+            whenever to use a random sedimentograph or not. Defaults to False
+        random_seed: int
+            if provided it is the random seed for the sedimentograph
+        """
+        if (rh < 0) or (rh > 1):
+            raise ValueError("high feed ratio rh must be between 0 and 1")
+        rl = 1 - rh  # percentage of time at low feed
+        if rqh < 1:
+            raise ValueError("rqh high rate sediment feed"
+                             + "can't be smaller than one")
+        if rqh > (1 / rh):
+            raise ValueError("the high feed is too high for"
+                             + "making the low feed negative")
+        rql = (1 - rqh * rh) / (1 - rh)  # proportion of low feed ql/qm
+        T = 0
+        if time is float:
+            T = np.arange(0, time, dt)
+        else:
+            T = time  # assume already a numpy time array
+
+        sedgraph = np.zeros_like(T)
+        n_period = int(Tc / dt)  # n indices per cycle
+        n_low = int(n_period * rl)  # n indices at low feed per cycle
+        n_high = n_period - n_low  # n indices at high feed per cycle
+        if not random:
+            qh = rqh * qm  # high feed rate
+            ql = rql * qm  # low feed rate
+            # always start at high feed
+            sedgraph[:] = qh
+            for i in range(len(T)):
+                if (i % n_period) > n_high:
+                    sedgraph[i] = ql
+            return sedgraph
+        else:  # uniform random distribution of rqh in [6,12] with 0.5 steps
+            if "random_seed" in kwargs:
+                rng = np.random.default_rng(kwargs["random_seed"])
+            else:
+                rng = np.random.default_rng()
+            range_random = np.arange(6, 12.5, 0.5)
+            for i in range(len(T)):
+                if i % n_period == 0:
+                    rqh = rng.choice(range_random)
+                    rql = (1 - rqh * rh) / (1 - rh)
+                    qh = rqh * qm  # high feed rate
+                    ql = rql * qm  # low feed rate
+                # always start at high feed
+                if (i % n_period) < n_high:
+                    sedgraph[i] = qh
+                else:
+                    sedgraph[i] = ql
+            return sedgraph
 
     @staticmethod
     def _preset_fields(ngrid, all_ones=False):
@@ -682,6 +743,8 @@ class Componentcita(Component):
         to 1, otherwise it uses commonly found values of these parameters.
         For more info on the parameters set see non optional inputs
         of this component.
+
+        tests are based on these predefined values, don't change them.
         """
 
         nodes1 = np.ones(ngrid.at_node.size)
