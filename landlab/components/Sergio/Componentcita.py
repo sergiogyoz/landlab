@@ -589,6 +589,7 @@ class Componentcita(Component):
                      * dpq / dx
                      * dt / (1 - self.porosity)
                      / self._grid.at_node["fraction_alluvium_cover"][self._unode])
+        if print(cover_dif)
         self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
         self._grid.at_node["mean_alluvium_thickness"][self._grid.at_node["mean_alluvium_thickness"] < 0] = 0
 
@@ -736,7 +737,7 @@ class Componentcita(Component):
             return sedgraph
 
     @staticmethod
-    def _preset_fields(ngrid, all_ones=False):
+    def _preset_fields(ngrid, all_ones=False, **kwargs):
         """
         presets all the required fields of the grid needed for an instance
         of componentcita. If all_ones is True it sets all such parameters
@@ -745,28 +746,49 @@ class Componentcita(Component):
         of this component.
 
         tests are based on these predefined values, don't change them.
+
+        If values are provided (all should be provided) then use the kwargs
+        for each of the fields. See non existing example.
         """
 
         nodes1 = np.ones(ngrid.at_node.size)
         links1 = np.ones(ngrid.at_link.size)
-        if all_ones:
-            ngrid.add_field("reach_length", copy.copy(links1), at="link")
-            ngrid.add_field("flood_discharge", copy.copy(links1), at="link")
-            ngrid.add_field("flood_intermittency", copy.copy(links1), at="link")
-            ngrid.add_field("channel_width", copy.copy(links1), at="link")
-            ngrid.add_field("sediment_grain_size", copy.copy(links1), at="link")
-            ngrid.add_field("sed_capacity", copy.copy(nodes1), at="node")
-            ngrid.add_field("macroroughness", copy.copy(links1), at="link")
-            ngrid.add_field("mean_alluvium_thickness", copy.copy(nodes1), at="node")
+        if "reach_length" in kwargs:
+            ngrid.add_field("reach_length",
+                            copy.copy(kwargs["reach_length"] * links1), at="link")
+            ngrid.add_field("flood_discharge",
+                            copy.copy(kwargs["flood_discharge"] * links1), at="link")
+            ngrid.add_field("flood_intermittency",
+                            copy.copy(kwargs["flood_intermittency"] * links1), at="link")
+            ngrid.add_field("channel_width",
+                            copy.copy(kwargs["channel_width"] * links1), at="link")
+            ngrid.add_field("sediment_grain_size",
+                            copy.copy(kwargs["sediment_grain_size"] * links1), at="link")
+            ngrid.add_field("sed_capacity",
+                            copy.copy(kwargs["sed_capacity"] * nodes1), at="node")
+            ngrid.add_field("macroroughness",
+                            copy.copy(kwargs["macroroughness"] * links1), at="link")
+            ngrid.add_field("mean_alluvium_thickness",
+                            copy.copy(kwargs["mean_alluvium_thickness"] * nodes1), at="node")
         else:
-            ngrid.add_field("reach_length", copy.copy(100 * links1), at="link")
-            ngrid.add_field("flood_discharge", copy.copy(300 * links1), at="link")
-            ngrid.add_field("flood_intermittency", copy.copy(0.05 * links1), at="link")
-            ngrid.add_field("channel_width", copy.copy(100 * links1), at="link")
-            ngrid.add_field("sediment_grain_size", copy.copy(0.02 * links1), at="link")
-            ngrid.add_field("sed_capacity", copy.copy(0 * nodes1), at="node")
-            ngrid.add_field("macroroughness", copy.copy(1 * links1), at="link")
-            ngrid.add_field("mean_alluvium_thickness", copy.copy(0.5 * nodes1), at="node")
+            if all_ones:
+                ngrid.add_field("reach_length", copy.copy(links1), at="link")
+                ngrid.add_field("flood_discharge", copy.copy(links1), at="link")
+                ngrid.add_field("flood_intermittency", copy.copy(links1), at="link")
+                ngrid.add_field("channel_width", copy.copy(links1), at="link")
+                ngrid.add_field("sediment_grain_size", copy.copy(links1), at="link")
+                ngrid.add_field("sed_capacity", copy.copy(nodes1), at="node")
+                ngrid.add_field("macroroughness", copy.copy(links1), at="link")
+                ngrid.add_field("mean_alluvium_thickness", copy.copy(nodes1), at="node")
+            else:
+                ngrid.add_field("reach_length", copy.copy(100 * links1), at="link")
+                ngrid.add_field("flood_discharge", copy.copy(300 * links1), at="link")
+                ngrid.add_field("flood_intermittency", copy.copy(0.05 * links1), at="link")
+                ngrid.add_field("channel_width", copy.copy(100 * links1), at="link")
+                ngrid.add_field("sediment_grain_size", copy.copy(0.02 * links1), at="link")
+                ngrid.add_field("sed_capacity", copy.copy(0 * nodes1), at="node")
+                ngrid.add_field("macroroughness", copy.copy(1 * links1), at="link")
+                ngrid.add_field("mean_alluvium_thickness", copy.copy(0.5 * nodes1), at="node")
 
     @staticmethod
     def _preset_network(which_network=0):

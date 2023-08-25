@@ -50,19 +50,19 @@ class setups:
 
 
 # %%
+# network from raster
 shape = (3, 11)
-reach_lenght = 200
+reach_lenght = 200 # dummy for the raster
 slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
 # landlab grid
-rastergrid = RasterModelGrid(shape=shape, xy_spacing=1)
+rastergrid = RasterModelGrid(shape=shape, xy_spacing=reach_lenght)
 rastergrid.add_field("topographic__elevation", s.line())
 imshow_grid(
     rastergrid,
     rastergrid.at_node["topographic__elevation"],
     cmap='inferno_r')
 
-# should I use the network to grid to create the simplified network? mmm
 ngrid = network_grid_from_raster(rastergrid)
 print(rastergrid.fields())
 
@@ -70,10 +70,32 @@ print(rastergrid.fields())
 flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
 # %%
-comp.Componentcita._preset_fields(ngrid)
+# initial values and parameters of the network
+nodes1 = np.ones(ngrid.at_node.size)
+links1 = np.ones(ngrid.at_link.size)
+reach_lenght = 200
+discharge = 300
+intermittency = 0.05
+channel_width = 100
+D = 0.02
+sed_capacity = 0
+macroroughness = 1
+alluvium = 0.5
+comp.Componentcita._preset_fields(
+    ngrid=ngrid,
+    reach_length=reach_lenght,
+    channel_width=channel_width,
+    flood_discharge=discharge,
+    flood_intermittency=intermittency,
+    sediment_grain_size=D,
+    sed_capacity=sed_capacity,
+    macroroughness=macroroughness,
+    mean_alluvium_thickness=alluvium)
+
 nety = comp.Componentcita(ngrid, flow_director, clobber=True)
 
 # %%
+# fields and network plot
 graph.plot_graph(ngrid, at="node,link", with_id=True)
 print(ngrid["link"].keys())
 print(ngrid["node"].keys())
@@ -90,22 +112,22 @@ n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
 year = 365.25 * 24 * 60 * 60  # in seconds
 dt = 0.001 * year
-total_time = 320 * year  # how long to simulate in years
-record_t = 1 * year  # how often to record in years
+total_time = 0.01 * year  # how long to simulate in years
+record_t = 0.001 * year  # how often to record in years
 sed_source = np.array([0])
 i = 0
 # downstream distance for plots
 distance = np.zeros_like(ngrid.at_node["sed_capacity"])
 distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
 # sedimentograph initial pulse
-qt = 0.00834
+qt = 0.000834
 ngrid.at_node["sed_capacity"][sed_source] = qt
 times = np.arange(0, total_time, dt)
 
 # %%
 # sedimentograph at the source nodes
-fraction_at_high_feed = 0.0625
-scale_of_high_feed = 4
+fraction_at_high_feed = 2.5 / 40
+scale_of_high_feed = 9
 cycle_period = 40 * year
 random_seed = 2
 sedgraph = comp.Componentcita.sedimentograph(
@@ -113,12 +135,12 @@ sedgraph = comp.Componentcita.sedimentograph(
     Tc=cycle_period,
     rh=fraction_at_high_feed,
     rqh=scale_of_high_feed,
-    random=True,
+    random=False,
     random_seed=random_seed)
 plt.figure(figsed)
 plt.plot(times / year, sedgraph,
          label=f"rh ={fraction_at_high_feed}, rqh ={scale_of_high_feed}")
-plt.title(f"Sedimentograph")
+plt.title("Sedimentograph")
 plt.legend()
 
 # %%
