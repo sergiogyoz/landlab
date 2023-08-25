@@ -589,7 +589,7 @@ class Componentcita(Component):
                      * dpq / dx
                      * dt / (1 - self.porosity)
                      / self._grid.at_node["fraction_alluvium_cover"][self._unode])
-        if print(cover_dif)
+
         self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
         self._grid.at_node["mean_alluvium_thickness"][self._grid.at_node["mean_alluvium_thickness"] < 0] = 0
 

@@ -100,28 +100,25 @@ graph.plot_graph(ngrid, at="node,link", with_id=True)
 print(ngrid["link"].keys())
 print(ngrid["node"].keys())
 
-
 # %%
 # prep for model
 fig1 = plt.figure(1)
 fig2 = plt.figure(2)
 fig3 = plt.figure(3)
-figsed = plt.figure(4)
+fig4 = plt.figure(4)
+figsed = plt.figure(0)
 
 n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
 year = 365.25 * 24 * 60 * 60  # in seconds
 dt = 0.001 * year
-total_time = 0.01 * year  # how long to simulate in years
-record_t = 0.001 * year  # how often to record in years
+total_time = 10 * year  # how long to simulate in years
+record_t = 1 * year  # how often to record in years
 sed_source = np.array([0])
 i = 0
 # downstream distance for plots
 distance = np.zeros_like(ngrid.at_node["sed_capacity"])
 distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
-# sedimentograph initial pulse
-qt = 0.000834
-ngrid.at_node["sed_capacity"][sed_source] = qt
 times = np.arange(0, total_time, dt)
 
 # %%
@@ -143,20 +140,28 @@ plt.plot(times / year, sedgraph,
 plt.title("Sedimentograph")
 plt.legend()
 
+
 # %%
 for time in times:
     # print(ngrid.at_node["sed_capacity"])
+    ngrid.at_node["sed_capacity"][sed_source] = sedgraph[i]
     if math.isclose(time % record_t, 0, abs_tol=dt / 3):
         plt.figure(fig1)
         bed = ngrid.at_node["bedrock"][xs]
-        plt.plot(distance, bed, label=f"t= {time/record_t:.1f} and i ={i}")
+        plt.plot(distance, bed, label=f"t= {time/(year):.3f}")
 
         plt.figure(fig2)
         alluvium = ngrid.at_node["mean_alluvium_thickness"][xs]
-        plt.plot(distance, alluvium, label=f"t= {time/record_t:.1f} and i ={i}")
+        plt.plot(distance, alluvium, label=f"t= {time/(year):.3f}")
 
         plt.figure(fig3)
-        plt.plot(distance, np.log10(alluvium), label=f"t= {time/record_t:.1f} and i ={i}")
+        plt.plot(distance, bed + alluvium, label=f"t= {time/(year):.3f}")
+
+        plt.figure(fig4)
+        sediment = ngrid.at_node["sed_capacity"][xs]
+        plt.plot(distance, sediment, label=f"t= {time/(year):.3f}")
+
+        print(f"{time / (year):.3f}") #,end=' ', flush=True)
 
     nety.run_one_step(dt=dt)  # ,omit=sed_source)
     i = i + 1
@@ -176,7 +181,13 @@ plt.show()
 
 plt.figure(fig3)
 plt.xlabel("downstream distance")
-plt.ylabel("log alluvium thickness (log m)")
+plt.ylabel("bed + alluvium (m)")
+plt.legend()
+plt.show()
+
+plt.figure(fig4)
+plt.xlabel("downstream distance")
+plt.ylabel("sediment capacity (m^2/s)")
 plt.legend()
 plt.show()
 
