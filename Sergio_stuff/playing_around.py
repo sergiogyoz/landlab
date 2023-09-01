@@ -51,7 +51,7 @@ class setups:
 
 # %%
 # network from raster
-shape = (3, 11)
+shape = (3, 6)
 reach_lenght = 200 # dummy for the raster
 slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
@@ -112,10 +112,9 @@ n = len(ngrid.at_node["sed_capacity"])
 xs = list(range(n))
 year = 365.25 * 24 * 60 * 60  # in seconds
 dt = 0.001 * year
-total_time = 10 * year  # how long to simulate in years
-record_t = 1 * year  # how often to record in years
+total_time = 0.02 * year  # how long to simulate in years
+record_t = 0.001 * year  # how often to record in years
 sed_source = np.array([0])
-i = 0
 # downstream distance for plots
 distance = np.zeros_like(ngrid.at_node["sed_capacity"])
 distance[1:] = np.cumsum(ngrid.at_link["reach_length"])
@@ -142,9 +141,11 @@ plt.legend()
 
 
 # %%
+i = 0
+ngrid.at_node["sed_capacity"][:] = sedgraph[0]
 for time in times:
-    # print(ngrid.at_node["sed_capacity"])
     ngrid.at_node["sed_capacity"][sed_source] = sedgraph[i]
+    # print(ngrid.at_node["sed_capacity"])
     if math.isclose(time % record_t, 0, abs_tol=dt / 3):
         plt.figure(fig1)
         bed = ngrid.at_node["bedrock"][xs]

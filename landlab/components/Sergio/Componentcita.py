@@ -329,7 +329,7 @@ class Componentcita(Component):
         # set conditions at the futher dowstream nodes
         # don't know yet how to handle these
 
-    def run_one_step(self, dt, omit=np.array([], np.int32)):
+    def run_one_step(self, dt):
         """
         It updates the mean alluvium thickness and the bedrock elevation based
         on the model by Zhang et al (2015,2018)
@@ -340,15 +340,16 @@ class Componentcita(Component):
         tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover(self.p0, self.p1)
         self._calculate_corrected_fraction(self.p0)
-        self._calculate_sed_capacity(tau_star, tau_star_crit, omit)
+        self._calculate_sed_capacity(tau_star, tau_star_crit, omit=self.sources)
+        # boundary conditions
+        self._boundary_conditions_precalc(outlet="copy_downstream")
         # bed erosion (applied to the upstream node)
         self._bed_erosion(dt)
         # mean alluvium thickness change
         self._mean_alluvium_change(dt)
         # update slopes
+        self._boundary_conditions_postcalc(outlet="copy_downstream")
         self._update_channel_slopes()
-        # boundary conditions
-        self._boundary_conditions()
 
     def _add_upstream_downstream_nodes(self):
         """
@@ -534,7 +535,6 @@ class Componentcita(Component):
         zeromask = np.ones_like(excess_shear)
         zeromask[excess_shear < 0] = 0  # as in the original code
         excess_shear = excess_shear * zeromask
-
         self._grid.at_node["sed_capacity"][self._unode] = (
             np.power(self.spec_grav * self.G * self._grid.at_link["sediment_grain_size"], 0.5)
             * self._grid.at_link["sediment_grain_size"]
@@ -552,7 +552,6 @@ class Componentcita(Component):
         Must be called after updating sediment capacity,
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
-        pa = 0
         if self.corrected:
             pa = self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
         else:
@@ -562,7 +561,6 @@ class Componentcita(Component):
                    * self._grid.at_node["sed_capacity"][self._unode]
                    * pa * (1 - pa) * dt)
         self._grid.at_node["bedrock"][self._unode] = self._grid.at_node["bedrock"][self._unode] - erosion
-        self._grid.at_node["bedrock"][self._grid.at_node["bedrock"] < 0] = 0
 
     def _mean_alluvium_change(self, dt):
         """
@@ -573,17 +571,16 @@ class Componentcita(Component):
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
         dx = self._grid.at_link["reach_length"]
-        dpq = 0
         if self.corrected:
-            dpq = ((self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
-                    * self._grid.at_node["sed_capacity"][self._unode])
-                   - (self._grid.at_node["fraction_alluvium_avaliable"][self._dnode]
-                      * self._grid.at_node["sed_capacity"][self._dnode]))
+            dpq = ((self._grid.at_node["fraction_alluvium_avaliable"][self._dnode]
+                    * self._grid.at_node["sed_capacity"][self._dnode])
+                   - (self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
+                      * self._grid.at_node["sed_capacity"][self._unode]))
         else:
-            dpq = ((self._grid.at_node["fraction_alluvium_cover"][self._unode]
-                    * self._grid.at_node["sed_capacity"][self._unode])
-                   - (self._grid.at_node["fraction_alluvium_cover"][self._dnode]
-                      * self._grid.at_node["sed_capacity"][self._dnode]))
+            dpq = ((self._grid.at_node["fraction_alluvium_cover"][self._dnode]
+                    * self._grid.at_node["sed_capacity"][self._dnode])
+                   - (self._grid.at_node["fraction_alluvium_cover"][self._unode]
+                      * self._grid.at_node["sed_capacity"][self._unode]))
 
         cover_dif = (-self._grid.at_link["flood_intermittency"]
                      * dpq / dx
@@ -593,15 +590,21 @@ class Componentcita(Component):
         self._grid.at_node["mean_alluvium_thickness"][self._unode] = self._grid.at_node["mean_alluvium_thickness"][self._unode] + cover_dif
         self._grid.at_node["mean_alluvium_thickness"][self._grid.at_node["mean_alluvium_thickness"] < 0] = 0
 
-    def _boundary_conditions(self, open_outlet=True, q_in=-1.0, t=-1.0, q_out=-1):
+    def _boundary_conditions_precalc(self, outlet="open", q_in=-1.0, t=-1.0, q_out=-1):
         """
         sets boundary conditions for incoming flux and outgoing nodes.
         It currently defaults to an open boundary downstream and a
         maximum alluvium of 1 L (1 macro roughtness unit for full cover).
 
-        Currently it sets the incoming and outgoing flux using the
-        q_up and q_out parameters as a constant or a time function, but
-        it sets all sources/outlets at the same value.
+        The options for outlet are "copy_downstream", "open", "set_values".
+        It defaults to "open".
+
+        "set_values" Currently sets the incoming and outgoing flux using the
+        q_up and q_out parameters as a constant or a time function. it sets
+        all sources/outlets at the same value. Information on how the
+        alluvium should behave at the outlet should also be provided, but it
+        is currently not implemented.
+        
         self.sources is an int np list of the nodes that are sources and
         similarly self.outlets for outlets.
 
@@ -621,12 +624,62 @@ class Componentcita(Component):
         # Default case with open boundaries
         flux_in = np.zeros_like(self.sources, dtype=np.float64)
         flux_out = np.zeros_like(self.outlets, dtype=np.float64)
-        if open_outlet:
+        if outlet == "copy_downstream":
             # Assuming the previous to last node is not ambiguous
             prev_node = self._grid.at_node["flow__sender_node"][self.outlets]
             prev_link = self._grid.at_node["flow__link_to_receiver_node"][prev_node]
-            flux_out = self._grid.at_node["sed_capacity"][prev_node]
+            # set outlets to mirror previous to last node
+            fields = {"sed_capacity", "fraction_alluvium_cover", "fraction_alluvium_avaliable"}
+            for field in fields:
+                self._grid.at_node[field][self.outlets] = self._grid.at_node[field][prev_node]
+            self._grid.at_node["mean_alluvium_thickness"][self.outlets] = self._grid.at_node["mean_alluvium_thickness"][prev_node]
+
+        if outlet == "set_values":
+            if isinstance(q_in, float):
+                if q_in < 0:
+                    raise ValueError("negative flux at sources")
+                flux_in.fill(q_in)
+            else:
+                if t < 0:
+                    raise ValueError("the t parameter was not provided")
+                flux_in.fill(q_in(t))
+
+            if isinstance(q_out, float):
+                if q_out < 0:
+                    raise ValueError("negative flux at outlets")
+                flux_out.fill(q_out)
+            else:
+                if t < 0:
+                    raise ValueError("the t parameter was not provided")
+                flux_out.fill(q_out(t))
+
+            self._grid.at_node["sed_capacity"][self.sources] = flux_in
             self._grid.at_node["sed_capacity"][self.outlets] = flux_out
+            return
+
+    def _boundary_conditions_postcalc(self, outlet="open", baselevel=0):
+        """
+        It handles the boundary conditions after the change in alluvium
+        and the bed have already been dealt with.
+
+        The options for outlet are "copy_downstream", "open", "set_values".
+        It defaults to "open".
+
+        only copy downstream is currently implemented. The option 
+        "set_values" is originally intended for situations where
+        one wants to provide how the elevation at the downstream end
+        should behave. Given that the user might do this in landlab
+        fields directly and that seems like the intended way to do
+        it in landlab I might never implement it. 
+        """
+        if outlet == "copy_downstream":
+            # Assuming the previous to last node is not ambiguous
+            prev_node = self._grid.at_node["flow__sender_node"][self.outlets]
+            prev_link = self._grid.at_node["flow__link_to_receiver_node"][prev_node]
+            # set outlets to mirror previous to last node
+            fields = {"mean_alluvium_thickness"}
+            for field in fields:
+                self._grid.at_node[field][self.outlets] = self._grid.at_node[field][prev_node]
             # Prevent the allivium to go over 1 L
             over_alluvium = (self._grid.at_node["mean_alluvium_thickness"][prev_node]
                              > self._grid.at_link["macroroughness"][prev_link])
@@ -635,29 +688,15 @@ class Componentcita(Component):
                 self._grid.at_link["macroroughness"][prev_link],
                 self._grid.at_node["mean_alluvium_thickness"][prev_node])
             self._grid.at_node["mean_alluvium_thickness"][self.outlets] = out_alluvium
+            # Prevents the bedrock from going below baselevel
+            under_prev = (self._grid.at_node["bedrock"][prev_node] < self._grid.at_node["bedrock"][self.outlets])
+            out_bedrock = np.where(
+                under_prev,
+                self._grid.at_node["bedrock"][prev_node],
+                self._grid.at_node["bedrock"][self.outlets])
+            out_bedrock[out_bedrock < baselevel] = baselevel
+            self._grid.at_node["bedrock"][self.outlets] = out_bedrock
             return
-
-        # otherwise set fluxes in and out
-        if isinstance(q_in, float):
-            if q_in < 0:
-                raise ValueError("negative flux at sources")
-            flux_in.fill(q_in)
-        else:
-            if t < 0:
-                raise ValueError("the t parameter was not provided")
-            flux_in.fill(q_in(t))
-
-        if isinstance(q_out, float):
-            if q_out < 0:
-                raise ValueError("negative flux at outlets")
-            flux_out.fill(q_out)
-        else:
-            if t < 0:
-                raise ValueError("the t parameter was not provided")
-            flux_out.fill(q_out(t))
-
-        self._grid.at_node["sed_capacity"][self.sources] = flux_in
-        self._grid.at_node["sed_capacity"][self.outlets] = flux_out
 
     @staticmethod
     def sedimentograph(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
