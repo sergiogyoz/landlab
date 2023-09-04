@@ -52,7 +52,7 @@ class setups:
 # %%
 # network from raster
 shape = (3, 6)
-reach_lenght = 200 # dummy for the raster
+reach_lenght = 200  # dummy for the raster
 slope = 0.004  # 0.004
 s = setups(shape, steepness=slope * reach_lenght)
 # landlab grid
@@ -83,7 +83,6 @@ macroroughness = 1
 alluvium = 0.5
 comp.Componentcita._preset_fields(
     ngrid=ngrid,
-    reach_length=reach_lenght,
     channel_width=channel_width,
     flood_discharge=discharge,
     flood_intermittency=intermittency,
