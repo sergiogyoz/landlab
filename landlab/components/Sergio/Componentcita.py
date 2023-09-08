@@ -240,6 +240,8 @@ class Componentcita(Component):
 
         self.corrected = corrected
         self.G = 9.80665  # gravity
+        self.au = 0.95  # used on the finite difference of the alluvium change
+        self.su = 0.5  # used to smooth instabilities from the gradient calculation
         self.Q = kwargs["discharge"] if "discharge" in kwargs else 300
         self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
         self.wear_coefficient = kwargs["beta"] if "beta" in kwargs else 0.05 * 0.001
@@ -279,7 +281,6 @@ class Componentcita(Component):
         self._topo = self._grid.at_node["topographic__elevation"]
         if not self._grid.has_field("bedrock", at="node"):
             self._grid.add_field("bedrock", copy.copy(self._topo), at="node")
-        self._calculate_reach_length()
         # and flow__sender_node to nodes
         if not self._grid.has_field("flow__sender_node", at="node"):
             self._add_flow_sender_node()
@@ -294,6 +295,7 @@ class Componentcita(Component):
         # add ouput fields
         self.initialize_output_fields()
         # update channel slopes
+        self._calculate_reach_length()
         self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
         # don't know yet how to handle these
@@ -336,7 +338,7 @@ class Componentcita(Component):
         # in that case the candidate maps down to a joint
         joints = self._dnode[candidates[passed]]
 
-        ujoints = {{}}
+        ujoints = {}
         for joint in joints:
             # if node down is the joint
             ups = (self._dnode == joint)
@@ -391,23 +393,27 @@ class Componentcita(Component):
 
     def _update_channel_slopes(self):
         """
-        Returns the channel slopes by adding the slope of the mean alluvium cover
-        and the bedrock slope.
-        Re-calculate channel slopes during each timestep.
-        """
-        Sb = (
-            (self._grid.at_node["bedrock"][self._unode]
-                - self._grid.at_node["bedrock"][self._dnode])
-            / self._grid.at_link["reach_length"])
-        
-        Sa = (
-            (self._grid.at_node["mean_alluvium_thickness"][self._unode]
-                - self._grid.at_node["mean_alluvium_thickness"][self._dnode])
-            / self._grid.at_link["reach_length"])
+        Returns the channel slopes using the mean alluvium cover and the
+        bedrock.
 
-        S = Sa + Sb
+        Additional parameter used helps smooth peaks caused by the numerical
+        instability of the central difference when calculating the slopes.
+        The order of the approximation reduces in exchange for less
+        instability and overall more realistic results.
+        """
+
+        c = self.su
+        dx = self._grid.at_node["reach_length"]
+        y = self._grid.at_node["bedrock"] + self._grid.at_node["mean_alluvium_thickness"]
+
+        S = -(- c * y[self._unode]
+              + (2 * c - 1) * y
+              + (1 - c) * y[self._dnode]) / dx
+
+        S[self.sources] = S[self.sources] / (1 - c)
+        S[self.outlets] = S[self.outlets] / (c)
         S[S < 0] = 0  # as implemented on the original code
-        self._grid.at_link["channel_slope"] = S
+        self._grid.at_node["channel_slope"] = S
 
     def _calculate_reach_length(self):
         """
@@ -415,6 +421,10 @@ class Componentcita(Component):
         slope formula. In the default case every point slope is
         found with up and down nodes and so the reach length is
         the total distance between those.
+
+        FUUUUUUCK I have to modify this to work in a network by
+        using a more complicated formula, I'll need to store the
+        upstream and downstream distances.
         """
 
         dis_up = (np.square(self._grid.x_of_node[self._unode] - self._grid.x_of_node)
@@ -425,7 +435,10 @@ class Componentcita(Component):
                     + np.square(self._grid.y_of_node - self._grid.y_of_node[self._dnode]))
         dis_down = np.sqrt(dis_down)
 
-        self._grid.at_node["reach_length"] = dis_up + dis_down
+        self._grid.at_node["reach_length"] = (dis_up + dis_down) / 2
+        self._grid.at_node["reach_length"][self.sources] = dis_down[self.sources]
+        self._grid.at_node["reach_length"][self.outlets] = dis_up[self.outlets]
+        
 
     def _calculate_flow_depths(self):
         """
@@ -433,8 +446,8 @@ class Componentcita(Component):
         H = [Q^2 / g*S*B^2*Cz^2]^(1/3)
         """
         H = ((self.Q * self.Q)
-             / (self.G * self._grid.at_link["channel_slope"]
-                * np.square(self._grid.at_link["channel_width"])
+             / (self.G * self._grid.at_node["channel_slope"]
+                * np.square(self._grid.at_node["channel_width"])
                 * self.Cz * self.Cz)) ** (1 / 3)
         return H
 
@@ -549,17 +562,20 @@ class Componentcita(Component):
         Must be called after updating sediment capacity,
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
-        dx = self._grid.at_link["reach_length"]
+        dx = self._grid.at_node["reach_length"]
         if self.corrected:
-            dpq = ((self._grid.at_node["fraction_alluvium_avaliable"][self._dnode]
-                    * self._grid.at_node["sed_capacity"][self._dnode])
-                   - (self._grid.at_node["fraction_alluvium_avaliable"][self._unode]
-                      * self._grid.at_node["sed_capacity"][self._unode]))
+            p = self._grid.at_node["fraction_alluvium_avaliable"]
         else:
-            dpq = ((self._grid.at_node["fraction_alluvium_cover"][self._dnode]
-                    * self._grid.at_node["sed_capacity"][self._dnode])
-                   - (self._grid.at_node["fraction_alluvium_cover"][self._unode]
-                      * self._grid.at_node["sed_capacity"][self._unode]))
+            p = self._grid.at_node["fraction_alluvium_cover"]
+        q = self._grid.at_node["sed_capacity"]
+        pq = p * q
+        c = self.au
+
+        dpq = (- c * pq[self._unode]
+               + (2 * c - 1) * pq
+               + (1 - c) * pq[self._dnode])
+        dpq[self.sources] = dpq[self.sources] / (1 - c)
+        dpq[self.outlets] = dpq[self.outlets] / (c)
 
         cover_dif = (-self._grid.at_node["flood_intermittency"]
                      * dpq / dx
@@ -612,7 +628,6 @@ class Componentcita(Component):
             fields = {"sed_capacity", "fraction_alluvium_cover", "fraction_alluvium_avaliable"}
             for field in fields:
                 self._grid.at_node[field][self.outlets] = self._grid.at_node[field][prev_node]
-            outlet_flux_set = True
             self._grid.at_node["mean_alluvium_thickness"][self.outlets] = self._grid.at_node["mean_alluvium_thickness"][prev_node]
 
         if outlet == "set_value":
@@ -621,16 +636,20 @@ class Componentcita(Component):
 
         # sources
         if source == "open":
-            source_flux_set = True
+            pass
 
         if source == "set_value":
-            flux_in[:] = kwargs["q_in"]
-            self._grid.at_node["sed_capacity"][self.outlets] = flux_in
+            if self.corrected:
+                p = self._grid.at_node["fraction_alluvium_avaliable"][self.sources]
+            else:
+                p = self._grid.at_node["fraction_alluvium_cover"][self.sources]
+            flux_in[:] = kwargs["q_in"] 
+            self._grid.at_node["sed_capacity"][self.sources] = flux_in / p
 
         if source == "copy_downstream":
             raise ValueError("copy_downstream for the sources is not currently implemented")
 
-    def _boundary_conditions_postcalc(self, outlet="open", source="set_value", limit_outlet=True, baselevel=0):
+    def _boundary_conditions_postcalc(self, outlet="open", source="open", limit_outlet=True, baselevel=0):
         """
         It handles the boundary conditions after the change in alluvium
         and the bed have already been dealt with.
@@ -699,19 +718,19 @@ class Componentcita(Component):
             pass
 
         if source == "copy_downstream":
-            next_node = prev_node = self._grid.at_node["flow__receiver_node"][self.sources]
+            next_node = self._grid.at_node["flow__receiver_node"][self.sources]
             fields = {"mean_alluvium_thickness", "bedrock"}
             for field in fields:
-                self._grid.at_node[field][self.outlets] = self._grid.at_node[field][next_node]
+                self._grid.at_node[field][self.sources] = self._grid.at_node[field][next_node]
 
         if source == "set_value":
             # if kwargs are provided then those should be used to set the
             # elevations and alluvium cover. Otherwise it defaults to
             # the copy_dowstream behaviour (not implemented yet)
-            next_node = prev_node = self._grid.at_node["flow__receiver_node"][self.sources]
+            next_node = self._grid.at_node["flow__receiver_node"][self.sources]
             fields = {"mean_alluvium_thickness", "bedrock"}
             for field in fields:
-                self._grid.at_node[field][self.outlets] = self._grid.at_node[field][next_node]
+                self._grid.at_node[field][self.sources] = self._grid.at_node[field][next_node]
 
     @staticmethod
     def sedimentograph(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
@@ -806,38 +825,37 @@ class Componentcita(Component):
         """
 
         nodes1 = np.ones(ngrid.at_node.size)
-        links1 = np.ones(ngrid.at_link.size)
         if "flood_discharge" in kwargs:
             ngrid.add_field("flood_discharge",
-                            copy.copy(kwargs["flood_discharge"] * links1), at="node")
+                            copy.copy(kwargs["flood_discharge"] * nodes1), at="node")
             ngrid.add_field("flood_intermittency",
-                            copy.copy(kwargs["flood_intermittency"] * links1), at="node")
+                            copy.copy(kwargs["flood_intermittency"] * nodes1), at="node")
             ngrid.add_field("channel_width",
-                            copy.copy(kwargs["channel_width"] * links1), at="node")
+                            copy.copy(kwargs["channel_width"] * nodes1), at="node")
             ngrid.add_field("sediment_grain_size",
-                            copy.copy(kwargs["sediment_grain_size"] * links1), at="node")
+                            copy.copy(kwargs["sediment_grain_size"] * nodes1), at="node")
             ngrid.add_field("sed_capacity",
                             copy.copy(kwargs["sed_capacity"] * nodes1), at="node")
             ngrid.add_field("macroroughness",
-                            copy.copy(kwargs["macroroughness"] * links1), at="node")
+                            copy.copy(kwargs["macroroughness"] * nodes1), at="node")
             ngrid.add_field("mean_alluvium_thickness",
                             copy.copy(kwargs["mean_alluvium_thickness"] * nodes1), at="node")
         else:
             if all_ones:
-                ngrid.add_field("flood_discharge", copy.copy(links1), at="node")
-                ngrid.add_field("flood_intermittency", copy.copy(links1), at="node")
-                ngrid.add_field("channel_width", copy.copy(links1), at="node")
-                ngrid.add_field("sediment_grain_size", copy.copy(links1), at="node")
+                ngrid.add_field("flood_discharge", copy.copy(nodes1), at="node")
+                ngrid.add_field("flood_intermittency", copy.copy(nodes1), at="node")
+                ngrid.add_field("channel_width", copy.copy(nodes1), at="node")
+                ngrid.add_field("sediment_grain_size", copy.copy(nodes1), at="node")
                 ngrid.add_field("sed_capacity", copy.copy(nodes1), at="node")
-                ngrid.add_field("macroroughness", copy.copy(links1), at="node")
+                ngrid.add_field("macroroughness", copy.copy(nodes1), at="node")
                 ngrid.add_field("mean_alluvium_thickness", copy.copy(nodes1), at="node")
             else:
-                ngrid.add_field("flood_discharge", copy.copy(300 * links1), at="node")
-                ngrid.add_field("flood_intermittency", copy.copy(0.05 * links1), at="node")
-                ngrid.add_field("channel_width", copy.copy(100 * links1), at="node")
-                ngrid.add_field("sediment_grain_size", copy.copy(0.02 * links1), at="node")
+                ngrid.add_field("flood_discharge", copy.copy(300 * nodes1), at="node")
+                ngrid.add_field("flood_intermittency", copy.copy(0.05 * nodes1), at="node")
+                ngrid.add_field("channel_width", copy.copy(100 * nodes1), at="node")
+                ngrid.add_field("sediment_grain_size", copy.copy(0.02 * nodes1), at="node")
                 ngrid.add_field("sed_capacity", copy.copy(0 * nodes1), at="node")
-                ngrid.add_field("macroroughness", copy.copy(1 * links1), at="node")
+                ngrid.add_field("macroroughness", copy.copy(1 * nodes1), at="node")
                 ngrid.add_field("mean_alluvium_thickness", copy.copy(0.5 * nodes1), at="node")
 
     @staticmethod
