@@ -84,7 +84,7 @@ flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
 # %%
 # initial values and parameters of the network
-nodes1 = np.ones(ngrid.at_node.size)
+nodes1 = np.ones(ngrid.at_node.size)  #erase
 discharge = 300
 intermittency = 0.05
 channel_width = 100
@@ -109,11 +109,11 @@ nety = comp.Componentcita(ngrid, flow_director, clobber=True)
 figsed = plt.figure(0)
 
 n = ngrid.at_node.size
-xs = np.arange(0, n, 1)
+xs = np.arange(0, n, 1)  #erase
 year = 365.25 * 24 * 60 * 60  # in seconds
 dt = 0.001 * year
-total_time = 10 * year  # how long to simulate in years
-record_t = 1 * year  # how often to record in years
+total_time = 1200 * year  # how long to simulate in years
+record_t = 100 * year  # how often to record in years
 uplift = 0.005 / year  # m/s
 # downstream distance for plots
 distance = np.copy(ngrid.at_node["reach_length"])
@@ -162,6 +162,7 @@ colormap = mpl.colormaps["plasma_r"]
 # run and record model for time in times
 baselevel = ngrid["node"]["bedrock"][nety.outlets][0]
 s.start_timer()
+label = ""
 for time, sed in zip(times, sedgraph):
     record = math.isclose(time % record_t, 0, abs_tol=dt / 2)
     add_to_legend = False

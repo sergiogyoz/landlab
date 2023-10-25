@@ -214,24 +214,32 @@ class Componentcita(Component):
         Cz: float
             Dimentionless Chezy resistance coeff. Defaults to 10
         beta: float
-            Related to sediment abrasion as beta = 3*alpha. Units of 1/m. Defaults to 0.05*0.001
+            Related to sediment abrasion as beta = 3*alpha. Units of 1/m.
+            Defaults to 0.05*0.001
         shear_coeff: float
             Sediment transport capacity coefficient (eq 5c). Defaults to 4
         shear_exp: float
             Sediment transport capacity exponent (eq 5c). Defaults to 1.5
         crit_shear: float
-            Dimentionless critical shear stress for incipient motion of sediment. Defaults to 0.0495
+            Dimentionless critical shear stress for incipient motion of
+            sediment. Defaults to 0.0495
         porosity: float
             Bedload sediment porosity. Defaults to 0.35
         spec_grav: float
             Specific gravity of sediment. Defaults to 1.65
         k_viscosity: float
-            Kinematic viscosity of water. Defaults to 10**-6, the kinematic viscosity of water (at 20C)
+            Kinematic viscosity of water. Defaults to 10**-6, the kinematic
+            viscosity of water (at 20C)
         p0: float
             Lower percentage of bed cover (deep pockets). Defaults to 0.05 = 5%
         p1: float
             Higher percentage for effective bed cover. Defaults to 0.95 = 95%
-
+        au: float
+            Alluvium calculation finite difference parameter, can be adjusted
+            get smoother alluvium results. Defaults to ....
+        su: float
+            Slope calculation finite difference parameter, can be adjusted get
+            smoother instabilities in slope calculations. Defaults to ....
         Examples
         --------
 
@@ -240,8 +248,8 @@ class Componentcita(Component):
 
         self.corrected = corrected
         self.G = 9.80665  # gravity
-        self.au = 0.95  # used on the finite difference of the alluvium change
-        self.su = 0.5  # used to smooth instabilities from the gradient calculation
+        self.au = kwargs["au"] if "au" in kwargs else 0.9
+        self.su = kwargs["su"] if "au" in kwargs else 0.1
         self.Q = kwargs["discharge"] if "discharge" in kwargs else 300
         self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
         self.wear_coefficient = kwargs["beta"] if "beta" in kwargs else 0.05 * 0.001
@@ -438,7 +446,6 @@ class Componentcita(Component):
         self._grid.at_node["reach_length"] = (dis_up + dis_down) / 2
         self._grid.at_node["reach_length"][self.sources] = dis_down[self.sources]
         self._grid.at_node["reach_length"][self.outlets] = dis_up[self.outlets]
-        
 
     def _calculate_flow_depths(self):
         """
@@ -557,8 +564,7 @@ class Componentcita(Component):
     def _mean_alluvium_change(self, dt):
         """
         Adds/Removes the difference in mean alluvium thickness by
-        discretizing the differential equation of the alluvium
-        in the upstream nodes (representing the link downstream).
+        discretizing the differential equation of the alluvium.
         Must be called after updating sediment capacity,
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
@@ -761,8 +767,8 @@ class Componentcita(Component):
         random_seed: int
             if provided it is the random seed for the sedimentograph
         """
-        if (rh < 0) or (rh > 1):
-            raise ValueError("high feed ratio rh must be between 0 and 1")
+        if (rh < 0) or (rh >= 1):
+            raise ValueError("high feed ratio rh must be between 0 (inclusive) and 1 (exclusive)")
         rl = 1 - rh  # percentage of time at low feed
         if rqh < 1:
             raise ValueError("rqh high rate sediment feed"
@@ -789,7 +795,6 @@ class Componentcita(Component):
             for i in range(len(T)):
                 if (i % n_period) > n_high:
                     sedgraph[i] = ql
-            return sedgraph
         else:  # uniform random distribution of rqh in [6,12] with 0.5 steps
             if "random_seed" in kwargs:
                 rng = np.random.default_rng(kwargs["random_seed"])
@@ -807,7 +812,11 @@ class Componentcita(Component):
                     sedgraph[i] = qh
                 else:
                     sedgraph[i] = ql
-            return sedgraph
+        sed_data = {}
+        sed_data["t"] = T
+        sed_data["sedgraph"] = sedgraph
+        sed_data["data"] = {"total_time": Tc, "rh": 0.25, "qm": 0.000834, "rqh": 1}
+        return sed_data
 
     @staticmethod
     def _preset_fields(ngrid, all_ones=False, **kwargs):
@@ -910,3 +919,6 @@ class Componentcita(Component):
             downstream_nodes,
             at="node"
         )
+
+
+
