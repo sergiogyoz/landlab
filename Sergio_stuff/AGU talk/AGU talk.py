@@ -4,8 +4,10 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as colorsmaps
 import numpy as np
+import pandas as pd
 import math
 import time as pytimer
+import pathlib as path
 
 from landlab import RasterModelGrid, imshow_grid
 # from landlab import NetworkModelGrid
@@ -157,7 +159,7 @@ def model1D(total_length=3000,
     return context, records, sed_data
 
 
-def plot_sed_graph(sed_data):
+def plot_sed_graph(sed_data, name, savedir=False):
     figsed = plt.figure(0)
     times = sed_data["t"]
     sedgraph = sed_data["sedgraph"]
@@ -170,9 +172,13 @@ def plot_sed_graph(sed_data):
     plt.ylabel("width average sediment flux $(m^2/s)$")
     plt.legend()
     plt.show()
+    if savedir:
+        fpath = path.Path(savedir)
+        fname = name + "_" + "sedgraph" + ".jpg"
+        plt.savefig(fpath / fname, bbox_inches='tight')
 
 
-def plot_1D_fields(context, records, savedir=False):
+def plot_1D_fields(context, records, name, savedir=False):
     # prep
     xs = context["x"]
     r_times = context["record_times"]
@@ -220,16 +226,33 @@ def plot_1D_fields(context, records, savedir=False):
         axes.legend(fontsize=14)
         axes.set_label
         if savedir:
-            fname = field + ".jpg"
-            plt.savefig(savedir + fname, bbox_inches='tight')
+            fpath = path.Path(savedir)
+            fname = name + "_" + field + ".jpg"
+            plt.savefig(fpath / fname, bbox_inches='tight')
         plt.show()
 
 
+def save_records_csv(records, savedir, fname):
+    folder = path.Path(savedir)
+    for field in records:
+        df = pd.DataFrame(records[field])
+        filename = fname + "_" + field + ".csv"
+        fpath = folder / filename
+        df.to_csv(fpath, header=False, index=False)
+
 # %%
-context, records, sed_data = model1D(total_time=5 * YEAR)
+context, records, sed_data = model1D(total_time=100 * YEAR,
+                                     record_time=5*YEAR)
 # %%
-plot_sed_graph(sed_data)
+savedir = path.Path("C:/Users/Sergio/Documents/GitHub/Sharing/Nicole/runs")
+plotsdir = savedir / "plots"
+datadir = savedir / "data"
+name = "100y_record_5y"
+
 # %%
-#savedir = "C:/Users/Sergio/Desktop/MRSAA_plots"
-plot_1D_fields(context, records)
+plot_sed_graph(sed_data, name, plotsdir)
+# %%
+plot_1D_fields(context, records, name, plotsdir)
+# %%
+save_records_csv(records, datadir, name)
 # %%
