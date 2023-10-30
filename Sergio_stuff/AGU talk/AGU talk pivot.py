@@ -179,22 +179,22 @@ def plot_sed_graph(sed_data, name, savedir=False):
     plt.show()
 
 
-def plot_1D_fields(context, records, name,
-                   from_time, to_time,
-                   savedir=False):
+def plot_1D_fields(context, records, name, savedir,
+                   from_time, to_time):
     # prep
     xs = context["x"]
     r_times = context["record_times"]
-    start_t = r_times[0] if not from_time else from_time
-    end_t = r_times[-1] if not to_time else to_time
+    from_t = r_times[0] if not from_time else from_time
+    to_t = r_times[-1] if not to_time else to_time
     fields = context["fields"]
     figs = [plt.figure(i + 1) for i in range(len(fields))]
-    norm = colorsmaps.Normalize(r_times[0], r_times[-1])
-    colormap = mpl.colormaps["plasma_r"]
-    # only plot range from start_t to end_t
+    # only plot range from from_t to to_t
     ind_df = pd.DataFrame(r_times)
-    ind_df = ind_df[ind_df[0] <= end_t]
-    ind_df = ind_df[ind_df[0] >= start_t]
+    ind_df = ind_df[ind_df[0] <= to_t]
+    ind_df = ind_df[ind_df[0] >= from_t]
+    # colors
+    norm = colorsmaps.Normalize(ind_df.iloc[0][0], ind_df.iloc[-1][0])
+    colormap = mpl.colormaps["plasma_r"]
     # plot
     for ind in ind_df.itertuples(index=True):
         time, r = ind[1], ind[0]
@@ -247,14 +247,20 @@ def save_records_csv(records, savedir, fname):
 
 
 # %%
-# 1200 years to steady state run
-context, records, sed_data = model1D(total_time=1200 * YEAR,
-                                     record_time=100 * YEAR,
-                                     total_length=20000)
+# 40 year after steady state
+context, records, sed_data = model1D(total_time=10 * YEAR,
+                                     record_time=1 * YEAR,
+                                     total_length=20000,
+                                     initial_slope=0.0027,
+                                     initial_allu_thickness=0.2,
+                                     initial_sed_capacity=0.0015,
+                                     scale_of_high_feed=3,
+                                     fraction_at_high_feed=0.25,
+                                     cycle_period=40 * YEAR)
 # %%
-# create folder and save results
-folder_name = "1200y-100y"
-filesname = "1200y_record_5y"
+# run folder to save results
+folder_name = "steady_sed_waves_4"
+filesname = "1200y-1240y"
 savedir = path.Path("C:/Users/Sergio/Documents/"
                     + "GitHub/Sharing/Nicole/runs/"
                     + folder_name)
@@ -263,8 +269,9 @@ plotsdir = savedir / "plots"
 datadir = savedir / "data"
 os.makedirs(plotsdir)
 os.makedirs(datadir)
-
-plot_sed_graph(sed_data, filesname, plotsdir)
-plot_1D_fields(context, records, filesname, plotsdir)
-save_records_csv(records, datadir, filesname)
 # %%
+plot_sed_graph(sed_data, filesname, plotsdir)
+plot_1D_fields(context, records, filesname, savedir=plotsdir,
+               from_time=3 * YEAR, to_time=8 * YEAR)
+save_records_csv(records, datadir, filesname)
+#%%

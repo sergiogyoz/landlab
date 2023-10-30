@@ -1,11 +1,7 @@
 # %%
 # imports
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.colors as colorsmaps
-import numpy as np
-import math
 import time as pytimer
+
 
 # grid setup
 class setup:
