@@ -54,6 +54,14 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Channel link average width",
         },
+        "discharge": {
+            "dtype": float,
+            "intent": "in",
+            "optional": True,
+            "units": "mm",
+            "mapping": "node",
+            "doc": "Sediment grain size on the link (single size sediment).",
+        },
         "sediment_grain_size": {
             "dtype": float,
             "intent": "in",
@@ -815,7 +823,7 @@ class Componentcita(Component):
         sed_data = {}
         sed_data["t"] = T
         sed_data["sedgraph"] = sedgraph
-        sed_data["data"] = {"total_time": Tc, "rh": 0.25, "qm": 0.000834, "rqh": 1}
+        sed_data["data"] = {"total_time": Tc, "rh": rh, "qm": qm, "rqh": rqh}
         return sed_data
 
     @staticmethod
