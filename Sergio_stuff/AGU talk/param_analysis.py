@@ -1,49 +1,48 @@
 # %%
 # imports
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.colors as colorsmaps
 import numpy as np
-import pandas as pd
-import math
 import pathlib as path
 import os
 
-from landlab import RasterModelGrid
-# from landlab import NetworkModelGrid
-from landlab.components import FlowDirectorSteepest
-from landlab.grid.create_network import network_grid_from_raster
-
-# import my DumbComponent
-from landlab.components import Componentcita as comp
 # and some tools
 from mytools import Model1D as m1d
 YEAR = 365.25 * 24 * 60 * 60
 
 
 # %%
-# 40 year after steady state
-context, records, sed_data = m1d.model1D(total_time=20 * YEAR,
-                                         record_time=1 * YEAR,
-                                         total_length=2500,
-                                         scale_of_high_feed=3,
-                                         fraction_at_high_feed=0.25,
-                                         cycle_period=40 * YEAR)
+n = 8 + 1
+s_range = np.linspace(0, 1, n)
+s_m, s_a = np.meshgrid(s_range, s_range)  # slope and alluvium
+
 # %%
-# folder to save run results
-folder_name = "me playing"
-filesname = "lala"
-savedir = path.Path("C:/Users/Sergio/Documents/"
-                    + "GitHub/Sharing/Nicole/runs/"
-                    + folder_name)
-# create folders
-plotsdir = savedir / "plots"
-datadir = savedir / "data"
-os.makedirs(plotsdir)
-os.makedirs(datadir)
-# %%
-m1d.plot_sed_graph(sed_data, filesname, plotsdir)
-m1d.plot_1D_fields(context, records, filesname, savedir=plotsdir,
-               from_time=0 * YEAR, to_time=20 * YEAR)
-m1d.save_records_csv(records, datadir, filesname)
+for i in range(n):
+    for j in range(n):
+        print(f"i = {i}, j = {j}")
+        context, records, sed_data = 0, 0, 0
+        context, records, sed_data = m1d.model1D(total_time=0.5 * YEAR,
+                                                 record_time=0.1 * YEAR,
+                                                 total_length=10000,
+                                                 scale_of_high_feed=3,
+                                                 fraction_at_high_feed=0.25,
+                                                 cycle_period=40 * YEAR,
+                                                 slope_smooth=s_m[i, j],
+                                                 allu_smooth=s_a[i, j],
+                                                 show_timer=False)
+        # folder to save run results
+        folder_name = "i_" + str(i) + "  j_" + str(j)
+        filesname = ""
+        savedir = path.Path("C:/Users/Sergio/Documents/"
+                            + "GitHub/Sharing/Nicole/runs/param_analysis/"
+                            + folder_name)
+        # create folders
+        plotsdir = savedir
+        datadir = savedir
+        os.makedirs(plotsdir, exist_ok=True)
+        os.makedirs(datadir, exist_ok=True)
+
+        # m1d.plot_sed_graph(sed_data, filesname, plotsdir)
+        m1d.plot_1D_fields(context, records, filesname, savedir=plotsdir,
+                           from_time=0 * YEAR, to_time=1 * YEAR,
+                           suptitle=f"slope s = {s_m[i,j]:.1f}     alluv s= {s_a[i,j]:.1f}")
+        m1d.save_records_csv(records, datadir, filesname)
 # %%

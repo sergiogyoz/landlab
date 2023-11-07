@@ -202,7 +202,7 @@ class Componentcita(Component):
         """
         Creates a Componencita object. If field values are provided as
         parameters in this function with the documented field name,
-        they will be created if the did not exist before. It won't 
+        they will be created if the did not exist before. It won't
         replace preset values in landlab fields.
 
         If needed values are not provided or preset then they will be
@@ -262,7 +262,6 @@ class Componentcita(Component):
         self.su = kwargs["su"] if "au" in kwargs else 0.1
         # add the extra parameters to the grid if not provided
         Componentcita._preset_fields(self._grid, False, **kwargs)
-        nodes = np.ones(self._grid.at_node.size)
         # other parameters
         self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
         self.wear_coefficient = kwargs["beta"] if "beta" in kwargs else 0.05 * 0.001
@@ -328,7 +327,7 @@ class Componentcita(Component):
         on the model by Zhang et al (2015,2018)
         """
         # calculate parameters needed in the pde
-        tau_star_crit = self._critical_shear_star()  # can be ignored since we use 0.0495 from the paper
+        tau_star_crit = self._critical_shear_star()  # can be ignored, we use 0.0495 from the paper
         tau_star_crit = self.sstau_star_c
         tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover(self.p0, self.p1)
@@ -519,7 +518,8 @@ class Componentcita(Component):
         """
 
         if np.any(self._grid.at_node["mean_alluvium_thickness"] < 0):
-            raise ArithmeticError("A previous calculation resulted in negative mean_alluvium_thickness")
+            raise ArithmeticError("A previous calculation resulted in "
+                                  + "negative mean_alluvium_thickness")
         chi = (
             self._grid.at_node["mean_alluvium_thickness"]
             / self._grid.at_node["macroroughness"])
@@ -668,13 +668,14 @@ class Componentcita(Component):
                 p = self._grid.at_node["fraction_alluvium_avaliable"][self.sources]
             else:
                 p = self._grid.at_node["fraction_alluvium_cover"][self.sources]
-            flux_in[:] = kwargs["q_in"] 
+            flux_in[:] = kwargs["q_in"]
             self._grid.at_node["sed_capacity"][self.sources] = flux_in / p
 
         if source == "copy_downstream":
             raise ValueError("copy_downstream for the sources is not currently implemented")
 
-    def _boundary_conditions_postcalc(self, outlet="open", source="open", limit_outlet=True, baselevel=0):
+    def _boundary_conditions_postcalc(self, outlet="open", source="open",
+                                      limit_outlet=True, baselevel=0):
         """
         It handles the boundary conditions after the change in alluvium
         and the bed have already been dealt with.
@@ -760,7 +761,7 @@ class Componentcita(Component):
     @staticmethod
     def sedimentograph(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
         """
-        Creates a sedimentograph to use as the feed on sources for the 
+        Creates a sedimentograph to use as the feed on sources for the
         network.
 
         Parameters
@@ -787,7 +788,8 @@ class Componentcita(Component):
             if provided it is the random seed for the sedimentograph
         """
         if (rh < 0) or (rh >= 1):
-            raise ValueError("high feed ratio rh must be between 0 (inclusive) and 1 (exclusive)")
+            raise ValueError("high feed ratio rh must be between"
+                             + "0 (inclusive) and 1 (exclusive)")
         rl = 1 - rh  # percentage of time at low feed
         if rqh < 1:
             raise ValueError("rqh high rate sediment feed"
@@ -843,7 +845,7 @@ class Componentcita(Component):
         presets all the required fields of the grid needed for an instance
         of componentcita. Will not add/replace fields already in the grid.
         Only valid kwargs will be addded.
-        
+
         If all_ones is True it sets all such parameters
         to 1, otherwise it uses values from main ref of these parameters.
         For more info on the parameters set see non optional inputs
@@ -866,7 +868,7 @@ class Componentcita(Component):
         for field in kwargs:
             if field in valid_fields:
                 valid_fields[field] = kwargs[field]
-        # fill fields if the values were not provided as landlab fields 
+        # fill fields if the values were not provided as landlab fields
         nodes = np.ones(ngrid.at_node.size)
         for field in valid_fields:
             if (not ngrid.has_field(field, at="node")):
