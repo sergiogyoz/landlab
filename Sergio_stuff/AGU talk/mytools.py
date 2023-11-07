@@ -19,14 +19,13 @@ YEAR = 365.25 * 24 * 60 * 60
 
 
 # grid setup
-class grid_geometry:
+class Grid_geometry:
 
     def __init__(self, shape, steepness=0.1):
         self.n = shape[0]
         self.m = shape[1]
         self.steepness = steepness
         self.grid = [0] * (self.n * self.m)
-        self.timer = 0.0
 
     def line(self, Vertical=False):
         if not Vertical:
@@ -53,21 +52,53 @@ class grid_geometry:
                         20.0, 15.0, 7.0, 6.0, 15.0, 20.0,
                         20.0, 20.0, 20.0, 20.0, 20.0, 20.0]
 
-    def start_timer(self):
+
+class Mytimer:
+
+    def __init__(self):
+        self.timer = 0.0
+
+    def start(self):
         self.timer = pytimer.perf_counter()
 
-    def clock_timer(self, show=True):
+    def clock(self, show=True):
         current_time = pytimer.perf_counter() - self.timer
         if show:
             print(f"iteration time: {current_time : .2f}")
-        self.start_timer()
+        self.start()
         return current_time
 
 
-class Model1D:
+class Sedgraph:
 
     @staticmethod
-    def model1D(total_length=2000,
+    def Zhang(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
+        sed_graph = comp.Componentcita.sedimentograph(time, dt, Tc, rh, qm, rqh, random, **kwargs)
+        return sed_graph
+
+    @staticmethod
+    def plot_sedgraph(sed_data, filenameprefix, savedir):
+        figsed = plt.figure(0)
+        times = sed_data["t"]
+        sed_graph = sed_data["sedgraph"]
+        plt.figure(figsed)
+        sed_label = (f"fraction at high_feed = {sed_data['data']['rh']} \n"
+                    f"scale_of_high_feed ={sed_data['data']['rqh']}")
+        plt.plot(times / YEAR, sed_graph, label=sed_label)
+        plt.title("Sedimentograph")
+        plt.xlabel("time (years)")
+        plt.ylabel("width average sediment flux $(m^2/s)$")
+        plt.legend()
+        if savedir:
+            fpath = path.Path(savedir)
+            fname = filenameprefix + "_" + "sedgraph" + ".png"
+            plt.savefig(fpath / fname, bbox_inches='tight')
+        plt.show()
+
+
+class Model1D:
+    @staticmethod
+    def basegrid_1D(total_length=2000,
                 reach_length=200,
                 initial_slope=0.004,
                 discharge=300,
@@ -78,28 +109,16 @@ class Model1D:
                 macroroughness=1,
                 initial_allu_thickness=0.5,
                 allu_smooth=0.8,
-                slope_smooth=0.2,
-                dt=0.001 * YEAR,
-                total_time=50 * YEAR,
-                record_time=1 * YEAR,
-                uplift=0.005 / YEAR,
-                mean_sediment_feed=0.000834,  # m^2/s
-                fraction_at_high_feed=0.25,  # rh
-                scale_of_high_feed=1,  # rqh
-                cycle_period=40 * YEAR,  # Tc
-                random_seed_sed=2,
-                plot_fields=False,
-                extra_fields=False,
-                ):
+                slope_smooth=0.2):
         """
-        This method depends on the global variable YEARS
+        creates and returns a grid with all the provided parameters
         """
         n = round(total_length / reach_length)
         # network from raster
         shape = (3, n + 2)
         reach_lenght = reach_length  # dummy for the raster
         slope = initial_slope
-        s = grid_geometry(shape, steepness=slope * reach_lenght)
+        s = Grid_geometry(shape, steepness=slope * reach_lenght)
         # landlab grid
         rastergrid = RasterModelGrid(shape=shape, xy_spacing=reach_lenght)
         rastergrid.add_field("topographic__elevation", s.line())
@@ -113,8 +132,8 @@ class Model1D:
         # initial values and parameters of the network
         comp.Componentcita._preset_fields(
             ngrid=ngrid,
+            discharge= discharge,
             channel_width=channel_width,
-            flood_discharge=discharge,
             flood_intermittency=intermittency,
             sediment_grain_size=sediment_size,
             sed_capacity=initial_sed_capacity,
@@ -123,21 +142,23 @@ class Model1D:
         nety = comp.Componentcita(ngrid, flow_director,
                                 au=allu_smooth, su=slope_smooth)
 
+        return ngrid, nety
+
+    @staticmethod
+    def run_and_record_1D(ngrid, nety, sed_data,
+                dt=0.001 * YEAR,
+                total_time=50 * YEAR,
+                record_time=1 * YEAR,
+                uplift=0.005 / YEAR,
+                plot_fields=False,
+                extra_fields=False,
+                show_timer=True                
+                ):
         # downstream distance for plots
         xs = np.copy(ngrid.at_node["reach_length"])
         xs = np.cumsum(xs) - xs[0]
         times = np.arange(0, total_time + dt, dt)
-
-        # sedimentograph at the source nodes
-        sed_data = comp.Componentcita.sedimentograph(
-            time=times, dt=dt,
-            Tc=cycle_period,
-            qm=mean_sediment_feed,
-            rh=fraction_at_high_feed,
-            rqh=scale_of_high_feed,
-            random=False,
-            random_seed=random_seed_sed)
-        sedgraph = sed_data["sedgraph"]
+        sed_graph = sed_data["sedgraph"]
 
         # plot prep
         if plot_fields:
@@ -163,14 +184,158 @@ class Model1D:
 
         # run and record model for time in times
         baselevel = ngrid["node"]["bedrock"][nety.outlets][0]
-        s.start_timer()
+        timer = Mytimer()
+        timer.start()
         r_ind = 0
-        for time, sed in zip(times, sedgraph):
+        for time, sed in zip(times, sed_graph):
             record = math.isclose(time, record_times[r_ind], abs_tol=dt / 2)
             if record:
                 # time record
-                print(f"year: {time / YEAR: .3f}")
-                s.clock_timer(show=True)
+                if show_timer:
+                    print(f"year: {time / YEAR: .2f}")
+                timer.clock(show=show_timer)
+                # store records
+                for field in fields:
+                    records[field][r_ind] = ngrid.at_node[field]
+                if not extra_fields:
+                    # alluvium + bed
+                    y = ngrid.at_node[fields[0]] + ngrid.at_node[fields[1]]
+                    records[extras[0]][r_ind] = y
+                    # bed slope
+                    y = ((ngrid.at_node[fields[0]][nety._unode]
+                        - ngrid.at_node[fields[0]][nety._dnode])
+                        / ngrid.at_node["reach_length"])
+                    y[1:-1] = y[1:-1] / 2
+                    records[extras[1]][r_ind] = y
+                    # alluvium slope
+                    y = ((ngrid.at_node[fields[1]][nety._unode]
+                        - ngrid.at_node[fields[1]][nety._dnode])
+                        / ngrid.at_node["reach_length"])
+                    y[1:-1] = y[1:-1] / 2
+                    records[extras[2]][r_ind] = y
+                r_ind = r_ind + 1
+
+            # uplift
+            ngrid.at_node["bedrock"] = ngrid.at_node["bedrock"] + uplift * dt
+            # fix outlet condition
+            ngrid.at_node["bedrock"][nety.outlets] = baselevel
+            # run one step
+            nety.run_one_step(dt=dt, q_in=sed)
+
+        context = {}
+        context["x"] = xs
+        context["record_times"] = record_times
+        context["fields"] = fields + extras
+        return context, records
+
+    @staticmethod  # deprecated, left for backward compatibility
+    def model1D(total_length=2000,
+                reach_length=200,
+                initial_slope=0.004,
+                discharge=300,
+                intermittency=0.05,
+                channel_width=100,
+                sediment_size=0.02,
+                initial_sed_capacity=0,
+                macroroughness=1,
+                initial_allu_thickness=0.5,
+                allu_smooth=0.8,
+                slope_smooth=0.2,
+                dt=0.001 * YEAR,
+                total_time=50 * YEAR,
+                record_time=1 * YEAR,
+                uplift=0.005 / YEAR,
+                mean_sediment_feed=0.000834,  # m^2/s
+                fraction_at_high_feed=0.25,  # rh
+                scale_of_high_feed=1,  # rqh
+                cycle_period=40 * YEAR,  # Tc
+                random_seed_sed=2,
+                plot_fields=False,
+                extra_fields=False,
+                show_timer=True
+                ):
+        """
+        This method depends on the global variable YEARS
+        """
+        n = round(total_length / reach_length)
+        # network from raster
+        shape = (3, n + 2)
+        reach_lenght = reach_length  # dummy for the raster
+        slope = initial_slope
+        s = Grid_geometry(shape, steepness=slope * reach_lenght)
+        # landlab grid
+        rastergrid = RasterModelGrid(shape=shape, xy_spacing=reach_lenght)
+        rastergrid.add_field("topographic__elevation", s.line())
+
+        ngrid = network_grid_from_raster(rastergrid)
+
+        # flow director
+        flow_director = FlowDirectorSteepest(ngrid)
+        flow_director.run_one_step()
+
+        # initial values and parameters of the network
+        comp.Componentcita._preset_fields(
+            ngrid=ngrid,
+            discharge= discharge,
+            channel_width=channel_width,
+            flood_intermittency=intermittency,
+            sediment_grain_size=sediment_size,
+            sed_capacity=initial_sed_capacity,
+            macroroughness=macroroughness,
+            mean_alluvium_thickness=initial_allu_thickness)
+        nety = comp.Componentcita(ngrid, flow_director,
+                                au=allu_smooth, su=slope_smooth)
+
+        # downstream distance for plots
+        xs = np.copy(ngrid.at_node["reach_length"])
+        xs = np.cumsum(xs) - xs[0]
+        times = np.arange(0, total_time + dt, dt)
+
+        # sedimentograph at the source nodes
+        sed_data = Sedgraph.Zhang(
+            time=times, dt=dt,
+            Tc=cycle_period,
+            qm=mean_sediment_feed,
+            rh=fraction_at_high_feed,
+            rqh=scale_of_high_feed,
+            random=False,
+            random_seed=random_seed_sed)
+        sed_graph = sed_data["sedgraph"]
+
+        # plot prep
+        if plot_fields:
+            fields = plot_fields
+        else:
+            fields = ["bedrock",
+                    "mean_alluvium_thickness",
+                    "sed_capacity",
+                    "channel_slope"]
+        if extra_fields:
+            extras = []
+        else:
+            extras = ["bed+alluvium",
+                    "bed_slope",
+                    "alluvium_slope"]
+
+        record_times = list(np.arange(0, total_time + dt, record_time))
+        nt = len(record_times)
+        mx = ngrid.at_node.size
+        records = {}
+        for field in fields + extras:
+            records[field] = np.zeros((nt, mx))
+
+        # run and record model for time in times
+        baselevel = ngrid["node"]["bedrock"][nety.outlets][0]
+        timer = Mytimer() 
+        timer.start()
+        r_ind = 0
+        for time, sed in zip(times, sed_graph):
+            record = math.isclose(time, record_times[r_ind], abs_tol=dt / 2)
+            if record:
+                # time record
+                if show_timer:
+                    print(f"year: {time / YEAR: .2f}")
+                timer.clock(show=show_timer)
                 # store records
                 for field in fields:
                     records[field][r_ind] = ngrid.at_node[field]
@@ -205,28 +370,13 @@ class Model1D:
         context["fields"] = fields + extras
         return context, records, sed_data
 
-    @staticmethod
+    @staticmethod  # deprecated, moved to it's own class
     def plot_sed_graph(sed_data, name, savedir):
-        figsed = plt.figure(0)
-        times = sed_data["t"]
-        sedgraph = sed_data["sedgraph"]
-        plt.figure(figsed)
-        sed_label = (f"fraction at high_feed = {sed_data['data']['rh']} \n"
-                    f"scale_of_high_feed ={sed_data['data']['rqh']}")
-        plt.plot(times / YEAR, sedgraph, label=sed_label)
-        plt.title("Sedimentograph")
-        plt.xlabel("time (years)")
-        plt.ylabel("width average sediment flux $(m^2/s)$")
-        plt.legend()
-        if savedir:
-            fpath = path.Path(savedir)
-            fname = name + "_" + "sedgraph" + ".png"
-            plt.savefig(fpath / fname, bbox_inches='tight')
-        plt.show()
+        Sedgraph.plot_sedgraph(sed_data, name, savedir)
 
     @staticmethod
     def plot_1D_fields(context, records, name, savedir,
-                    from_time, to_time):
+                       from_time=False, to_time=False, suptitle=False):
         # prep
         xs = context["x"]
         r_times = context["record_times"]
@@ -271,6 +421,8 @@ class Model1D:
             for line in axes.get_lines():
                 line.set_linewidth(2.)
             axes.set_title(field, fontsize=30)
+            if suptitle:
+                fig.suptitle(suptitle, fontsize=40)
             axes.set_xlabel(xlabel, fontsize=20)
             axes.set_ylabel(ylabels[field], fontsize=20)
             axes.tick_params(labelsize=24)
@@ -291,4 +443,41 @@ class Model1D:
             fpath = folder / filename
             df.to_csv(fpath, header=False, index=False)
 
+    @staticmethod
+    def discharge_calc_normal(downQ, dx, n, pup=0.5, pdown=0.2, hacks=0.56):
+        """
+        array of size n+1. It uses a quadratic->linear->quadratic relationship
+        for the lenght to area. If hacks is true then it uses hacks law with
+        parameters 
+        """
+        Q = pd.DataFrame()
+        Q["x"] = np.arange(0, n * dx + dx, dx)
+        Q["y_hack"] = np.power(Q["x"], 0.6)
+        dq = [0] * (n+1)
+        li = round(n * pup)
+        ri = round(n *(1-pdown))
 
+        l = n * dx
+        mid = (1 - pdown - pup) * l
+        h = 2 * downQ / (l + mid)
+    
+        step = h * dx / len(range(1, li+1))
+        for i in range(1, li+1):
+            dq[i] = dq[i-1] + step
+        print(i)
+        step = 0
+        for i in range(li,ri+1):
+            dq[i] = dq[i-1] + step
+        print(i)
+        step = -h * dx / len(range(ri, n+1))
+        for i in range(ri,n+1):
+            dq[i] = dq[i-1] + step
+        print(i)
+        Q["dy"] = np.array(dq)
+        Q["y"] = Q["dy"].cumsum()
+
+        Q["logx"] = np.log(Q["x"])
+        Q["logy"] = np.log(Q["y"])
+        Q["logy_hack"] = np.log(Q["y_hack"])
+
+        return Q

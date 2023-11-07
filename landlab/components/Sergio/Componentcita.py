@@ -30,13 +30,13 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Land surface topographic elevation",
         },
-        "flood_discharge": {
+        "discharge": {
             "dtype": float,
             "intent": "in",
             "optional": False,
             "units": "m^3/s",
             "mapping": "node",
-            "doc": "Morphodynamically active discharge.",
+            "doc": "Unit width morphodynamically active water discharge.",
         },
         "flood_intermittency": {
             "dtype": float,
@@ -54,21 +54,13 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Channel link average width",
         },
-        "discharge": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "mm",
-            "mapping": "node",
-            "doc": "Sediment grain size on the link (single size sediment).",
-        },
         "sediment_grain_size": {
             "dtype": float,
             "intent": "in",
             "optional": False,
             "units": "mm",
             "mapping": "node",
-            "doc": "Sediment grain size on the link (single size sediment).",
+            "doc": "Sediment grain size on the node (single size sediment).",
         },
         "specific_gravity": {
             "dtype": float,
@@ -206,8 +198,16 @@ class Componentcita(Component):
       journal = {The "I hope to get better" Journal of science}
     }"""
 
-    def __init__(self, grid, flow_director, corrected=True, clobber=False, **kwargs):
+    def __init__(self, grid, flow_director, corrected=True, **kwargs):
         """
+        Creates a Componencita object. If field values are provided as
+        parameters in this function with the documented field name,
+        they will be created if the did not exist before. It won't 
+        replace preset values in landlab fields.
+
+        If needed values are not provided or preset then they will be
+        created using values from main ref paper.
+
         Parameters
         ----------
         grid: RasterModelGrid
@@ -218,7 +218,8 @@ class Componentcita(Component):
         clobber: bool
             currently not implemented. Defaults to False
         discharge: float
-            flow discharge in m^3/s. Defaults to 300
+            if not provided as a landlab field flow discharge in m^3/s.
+            Defaults to 300 m^3/s constant along the network.
         Cz: float
             Dimentionless Chezy resistance coeff. Defaults to 10
         beta: float
@@ -256,9 +257,13 @@ class Componentcita(Component):
 
         self.corrected = corrected
         self.G = 9.80665  # gravity
+        # smoothing parameters for the alluvium and slope calculations
         self.au = kwargs["au"] if "au" in kwargs else 0.9
         self.su = kwargs["su"] if "au" in kwargs else 0.1
-        self.Q = kwargs["discharge"] if "discharge" in kwargs else 300
+        # add the extra parameters to the grid if not provided
+        Componentcita._preset_fields(self._grid, False, **kwargs)
+        nodes = np.ones(self._grid.at_node.size)
+        # other parameters
         self.Cz = kwargs["Cz"] if "Cz" in kwargs else 10
         self.wear_coefficient = kwargs["beta"] if "beta" in kwargs else 0.05 * 0.001
 
@@ -293,7 +298,8 @@ class Componentcita(Component):
             )
             raise ValueError(msg)
 
-        # topographic elevation is the bedrock topography for now
+        # topographic elevation is a copy of the
+        # bedrock topography by default
         self._topo = self._grid.at_node["topographic__elevation"]
         if not self._grid.has_field("bedrock", at="node"):
             self._grid.add_field("bedrock", copy.copy(self._topo), at="node")
@@ -425,9 +431,11 @@ class Componentcita(Component):
         S = -(- c * y[self._unode]
               + (2 * c - 1) * y
               + (1 - c) * y[self._dnode]) / dx
-
-        S[self.sources] = S[self.sources] / (1 - c)
-        S[self.outlets] = S[self.outlets] / (c)
+        if (c == 0) or (c == 1):
+            pass
+        else:
+            S[self.sources] = S[self.sources] / (1 - c)
+            S[self.outlets] = S[self.outlets] / (c)
         S[S < 0] = 0  # as implemented on the original code
         self._grid.at_node["channel_slope"] = S
 
@@ -460,7 +468,7 @@ class Componentcita(Component):
         Re-calculates the flow depth based on the hydraulic relation
         H = [Q^2 / g*S*B^2*Cz^2]^(1/3)
         """
-        H = ((self.Q * self.Q)
+        H = ((self._grid.at_node["discharge"] * self._grid.at_node["discharge"])
              / (self.G * self._grid.at_node["channel_slope"]
                 * np.square(self._grid.at_node["channel_width"])
                 * self.Cz * self.Cz)) ** (1 / 3)
@@ -473,7 +481,7 @@ class Componentcita(Component):
         tau_star = [Q^2 / g*B^2*Cz^2]^(1/3) * S^(2/3) / (R * D)
         """
         tau_star = (np.power(
-            np.square(self.Q / self._grid.at_node["channel_width"])
+            np.square(self._grid.at_node["discharge"] / self._grid.at_node["channel_width"])
             / (self.Cz * self.Cz)
             / self.G,
             1 / 3)
@@ -588,8 +596,11 @@ class Componentcita(Component):
         dpq = (- c * pq[self._unode]
                + (2 * c - 1) * pq
                + (1 - c) * pq[self._dnode])
-        dpq[self.sources] = dpq[self.sources] / (1 - c)
-        dpq[self.outlets] = dpq[self.outlets] / (c)
+        if (c == 1) or (c == 0):
+            pass
+        else:
+            dpq[self.sources] = dpq[self.sources] / (1 - c)
+            dpq[self.outlets] = dpq[self.outlets] / (c)
 
         cover_dif = (-self._grid.at_node["flood_intermittency"]
                      * dpq / dx
@@ -830,8 +841,11 @@ class Componentcita(Component):
     def _preset_fields(ngrid, all_ones=False, **kwargs):
         """
         presets all the required fields of the grid needed for an instance
-        of componentcita. If all_ones is True it sets all such parameters
-        to 1, otherwise it uses commonly found values of these parameters.
+        of componentcita. Will not add/replace fields already in the grid.
+        Only valid kwargs will be addded.
+        
+        If all_ones is True it sets all such parameters
+        to 1, otherwise it uses values from main ref of these parameters.
         For more info on the parameters set see non optional inputs
         of this component.
 
@@ -840,40 +854,26 @@ class Componentcita(Component):
         If values are provided (all should be provided) then use the kwargs
         for each of the fields. See non existing example.
         """
-
-        nodes1 = np.ones(ngrid.at_node.size)
-        if "flood_discharge" in kwargs:
-            ngrid.add_field("flood_discharge",
-                            copy.copy(kwargs["flood_discharge"] * nodes1), at="node")
-            ngrid.add_field("flood_intermittency",
-                            copy.copy(kwargs["flood_intermittency"] * nodes1), at="node")
-            ngrid.add_field("channel_width",
-                            copy.copy(kwargs["channel_width"] * nodes1), at="node")
-            ngrid.add_field("sediment_grain_size",
-                            copy.copy(kwargs["sediment_grain_size"] * nodes1), at="node")
-            ngrid.add_field("sed_capacity",
-                            copy.copy(kwargs["sed_capacity"] * nodes1), at="node")
-            ngrid.add_field("macroroughness",
-                            copy.copy(kwargs["macroroughness"] * nodes1), at="node")
-            ngrid.add_field("mean_alluvium_thickness",
-                            copy.copy(kwargs["mean_alluvium_thickness"] * nodes1), at="node")
-        else:
-            if all_ones:
-                ngrid.add_field("flood_discharge", copy.copy(nodes1), at="node")
-                ngrid.add_field("flood_intermittency", copy.copy(nodes1), at="node")
-                ngrid.add_field("channel_width", copy.copy(nodes1), at="node")
-                ngrid.add_field("sediment_grain_size", copy.copy(nodes1), at="node")
-                ngrid.add_field("sed_capacity", copy.copy(nodes1), at="node")
-                ngrid.add_field("macroroughness", copy.copy(nodes1), at="node")
-                ngrid.add_field("mean_alluvium_thickness", copy.copy(nodes1), at="node")
-            else:
-                ngrid.add_field("flood_discharge", copy.copy(300 * nodes1), at="node")
-                ngrid.add_field("flood_intermittency", copy.copy(0.05 * nodes1), at="node")
-                ngrid.add_field("channel_width", copy.copy(100 * nodes1), at="node")
-                ngrid.add_field("sediment_grain_size", copy.copy(0.02 * nodes1), at="node")
-                ngrid.add_field("sed_capacity", copy.copy(0 * nodes1), at="node")
-                ngrid.add_field("macroroughness", copy.copy(1 * nodes1), at="node")
-                ngrid.add_field("mean_alluvium_thickness", copy.copy(0.5 * nodes1), at="node")
+        valid_fields = {"discharge": 300,
+                        "flood_intermittency": 0.05,
+                        "channel_width": 100,
+                        "sediment_grain_size": 0.02,
+                        "sed_capacity": 0,
+                        "macroroughness": 1,
+                        "mean_alluvium_thickness": 0.5
+                        }
+        # replace valid fields with the given parameters
+        for field in kwargs:
+            if field in valid_fields:
+                valid_fields[field] = kwargs[field]
+        # fill fields if the values were not provided as landlab fields 
+        nodes = np.ones(ngrid.at_node.size)
+        for field in valid_fields:
+            if (not ngrid.has_field(field, at="node")):
+                if all_ones:
+                    ngrid.add_field(field, 1 * nodes, at="node")
+                else:
+                    ngrid.add_field(field, valid_fields[field] * nodes, at="node")
 
     @staticmethod
     def _preset_network(which_network=0):
@@ -927,6 +927,3 @@ class Componentcita(Component):
             downstream_nodes,
             at="node"
         )
-
-
-
