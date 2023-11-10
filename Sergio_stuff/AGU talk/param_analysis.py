@@ -10,7 +10,7 @@ YEAR = 365.25 * 24 * 60 * 60
 
 
 # %%
-n = 8 + 1
+n = 3 + 1
 s_range = np.linspace(0, 1, n)
 s_m, s_a = np.meshgrid(s_range, s_range)  # slope and alluvium
 
@@ -19,8 +19,8 @@ for i in range(n):
     for j in range(n):
         print(f"i = {i}, j = {j}")
         context, records, sed_data = 0, 0, 0
-        context, records, sed_data = m1d.model1D(total_time=0.5 * YEAR,
-                                                 record_time=0.1 * YEAR,
+        context, records, sed_data = m1d.model1D(total_time=3 * YEAR,
+                                                 record_time=1 * YEAR,
                                                  total_length=10000,
                                                  scale_of_high_feed=3,
                                                  fraction_at_high_feed=0.25,
@@ -42,7 +42,7 @@ for i in range(n):
 
         # m1d.plot_sed_graph(sed_data, filesname, plotsdir)
         m1d.plot_1D_fields(context, records, filesname, savedir=plotsdir,
-                           from_time=0 * YEAR, to_time=1 * YEAR,
-                           suptitle=f"slope s = {s_m[i,j]:.1f}     alluv s= {s_a[i,j]:.1f}")
-        m1d.save_records_csv(records, datadir, filesname)
+                           from_time=False, to_time=False,
+                           suptitle=f"alluv s= {s_a[i,j]:.1f}     slope s = {s_m[i,j]:.1f}")
+        m1d.save_records_csv(records, datadir, filesname, context)
 # %%

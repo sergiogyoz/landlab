@@ -73,17 +73,18 @@ class Sedgraph:
 
     @staticmethod
     def Zhang(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
-        sed_graph = comp.Componentcita.sedimentograph(time, dt, Tc, rh, qm, rqh, random, **kwargs)
+        sed_graph = comp.Componentcita.sedimentograph(time, dt, Tc, rh, qm,
+                                                      rqh, random, **kwargs)
         return sed_graph
 
     @staticmethod
-    def plot_sedgraph(sed_data, filenameprefix, savedir):
+    def plot_sedgraph(sed_data, fprefix, savedir):
         figsed = plt.figure(0)
         times = sed_data["t"]
         sed_graph = sed_data["sedgraph"]
         plt.figure(figsed)
         sed_label = (f"fraction at high_feed = {sed_data['data']['rh']} \n"
-                    f"scale_of_high_feed ={sed_data['data']['rqh']}")
+                     f"scale_of_high_feed ={sed_data['data']['rqh']}")
         plt.plot(times / YEAR, sed_graph, label=sed_label)
         plt.title("Sedimentograph")
         plt.xlabel("time (years)")
@@ -91,7 +92,7 @@ class Sedgraph:
         plt.legend()
         if savedir:
             fpath = path.Path(savedir)
-            fname = filenameprefix + "_" + "sedgraph" + ".png"
+            fname = fprefix + "_" + "sedgraph" + ".png"
             plt.savefig(fpath / fname, bbox_inches='tight')
         plt.show()
 
@@ -99,17 +100,17 @@ class Sedgraph:
 class Model1D:
     @staticmethod
     def basegrid_1D(total_length=2000,
-                reach_length=200,
-                initial_slope=0.004,
-                discharge=300,
-                intermittency=0.05,
-                channel_width=100,
-                sediment_size=0.02,
-                initial_sed_capacity=0,
-                macroroughness=1,
-                initial_allu_thickness=0.5,
-                allu_smooth=0.8,
-                slope_smooth=0.2):
+                    reach_length=200,
+                    initial_slope=0.004,
+                    discharge=300,
+                    intermittency=0.05,
+                    channel_width=100,
+                    sediment_size=0.02,
+                    initial_sed_capacity=0,
+                    macroroughness=1,
+                    initial_allu_thickness=0.5,
+                    allu_smooth=0.8,
+                    slope_smooth=0.2):
         """
         creates and returns a grid with all the provided parameters
         """
@@ -132,7 +133,7 @@ class Model1D:
         # initial values and parameters of the network
         comp.Componentcita._preset_fields(
             ngrid=ngrid,
-            discharge= discharge,
+            discharge=discharge,
             channel_width=channel_width,
             flood_intermittency=intermittency,
             sediment_grain_size=sediment_size,
@@ -140,20 +141,20 @@ class Model1D:
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
         nety = comp.Componentcita(ngrid, flow_director,
-                                au=allu_smooth, su=slope_smooth)
+                                  au=allu_smooth, su=slope_smooth)
 
         return ngrid, nety
 
     @staticmethod
     def run_and_record_1D(ngrid, nety, sed_data,
-                dt=0.001 * YEAR,
-                total_time=50 * YEAR,
-                record_time=1 * YEAR,
-                uplift=0.005 / YEAR,
-                plot_fields=False,
-                extra_fields=False,
-                show_timer=True                
-                ):
+                          dt=0.001 * YEAR,
+                          total_time=50 * YEAR,
+                          record_time=1 * YEAR,
+                          uplift=0.005 / YEAR,
+                          plot_fields=False,
+                          extra_fields=False,
+                          show_timer=True
+                          ):
         # downstream distance for plots
         xs = np.copy(ngrid.at_node["reach_length"])
         xs = np.cumsum(xs) - xs[0]
@@ -165,15 +166,15 @@ class Model1D:
             fields = plot_fields
         else:
             fields = ["bedrock",
-                    "mean_alluvium_thickness",
-                    "sed_capacity",
-                    "channel_slope"]
+                      "mean_alluvium_thickness",
+                      "sed_capacity",
+                      "channel_slope"]
         if extra_fields:
             extras = []
         else:
             extras = ["bed+alluvium",
-                    "bed_slope",
-                    "alluvium_slope"]
+                      "bed_slope",
+                      "alluvium_slope"]
 
         record_times = list(np.arange(0, total_time + dt, record_time))
         nt = len(record_times)
@@ -203,14 +204,14 @@ class Model1D:
                     records[extras[0]][r_ind] = y
                     # bed slope
                     y = ((ngrid.at_node[fields[0]][nety._unode]
-                        - ngrid.at_node[fields[0]][nety._dnode])
-                        / ngrid.at_node["reach_length"])
+                         - ngrid.at_node[fields[0]][nety._dnode])
+                         / ngrid.at_node["reach_length"])
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
                     y = ((ngrid.at_node[fields[1]][nety._unode]
-                        - ngrid.at_node[fields[1]][nety._dnode])
-                        / ngrid.at_node["reach_length"])
+                         - ngrid.at_node[fields[1]][nety._dnode])
+                         / ngrid.at_node["reach_length"])
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1
@@ -276,7 +277,7 @@ class Model1D:
         # initial values and parameters of the network
         comp.Componentcita._preset_fields(
             ngrid=ngrid,
-            discharge= discharge,
+            discharge=discharge,
             channel_width=channel_width,
             flood_intermittency=intermittency,
             sediment_grain_size=sediment_size,
@@ -284,7 +285,7 @@ class Model1D:
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
         nety = comp.Componentcita(ngrid, flow_director,
-                                au=allu_smooth, su=slope_smooth)
+                                  au=allu_smooth, su=slope_smooth)
 
         # downstream distance for plots
         xs = np.copy(ngrid.at_node["reach_length"])
@@ -307,15 +308,15 @@ class Model1D:
             fields = plot_fields
         else:
             fields = ["bedrock",
-                    "mean_alluvium_thickness",
-                    "sed_capacity",
-                    "channel_slope"]
+                      "mean_alluvium_thickness",
+                      "sed_capacity",
+                      "channel_slope"]
         if extra_fields:
             extras = []
         else:
             extras = ["bed+alluvium",
-                    "bed_slope",
-                    "alluvium_slope"]
+                      "bed_slope",
+                      "alluvium_slope"]
 
         record_times = list(np.arange(0, total_time + dt, record_time))
         nt = len(record_times)
@@ -326,7 +327,7 @@ class Model1D:
 
         # run and record model for time in times
         baselevel = ngrid["node"]["bedrock"][nety.outlets][0]
-        timer = Mytimer() 
+        timer = Mytimer()
         timer.start()
         r_ind = 0
         for time, sed in zip(times, sed_graph):
@@ -345,14 +346,14 @@ class Model1D:
                     records[extras[0]][r_ind] = y
                     # bed slope
                     y = ((ngrid.at_node[fields[0]][nety._unode]
-                        - ngrid.at_node[fields[0]][nety._dnode])
-                        / ngrid.at_node["reach_length"])
+                         - ngrid.at_node[fields[0]][nety._dnode])
+                         / ngrid.at_node["reach_length"])
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
                     y = ((ngrid.at_node[fields[1]][nety._unode]
-                        - ngrid.at_node[fields[1]][nety._dnode])
-                        / ngrid.at_node["reach_length"])
+                         - ngrid.at_node[fields[1]][nety._dnode])
+                         / ngrid.at_node["reach_length"])
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1
@@ -371,11 +372,11 @@ class Model1D:
         return context, records, sed_data
 
     @staticmethod  # deprecated, moved to it's own class
-    def plot_sed_graph(sed_data, name, savedir):
-        Sedgraph.plot_sedgraph(sed_data, name, savedir)
+    def plot_sed_graph(sed_data, fprefix, savedir):
+        Sedgraph.plot_sedgraph(sed_data, fprefix, savedir)
 
     @staticmethod
-    def plot_1D_fields(context, records, name, savedir,
+    def plot_1D_fields(context, records, prefix, savedir,
                        from_time=False, to_time=False, suptitle=False):
         # prep
         xs = context["x"]
@@ -399,19 +400,19 @@ class Model1D:
                 plt.figure(fig)
                 y = records[field][r]
                 plt.plot(xs, y,
-                        color=colormap(norm(time)),
-                        label=label)
+                         color=colormap(norm(time)),
+                         label=label)
             plt.close("all")
 
         # labels and titles
         xlabel = "downstream distance (m)"
         ylabels = {"bedrock": "bedrock elevation (m)",
-                "mean_alluvium_thickness": "alluvium thickness (m)",
-                "sed_capacity": "sediment capacity (m^2/s)",
-                "channel_slope": "channel slope (m/m)",
-                "bed+alluvium": "bed + alluvium (m)",
-                "bed_slope": "bed slope (m/m)",
-                "alluvium_slope": "alluvium slope (m/m)"}
+                   "mean_alluvium_thickness": "alluvium thickness (m)",
+                   "sed_capacity": "sediment capacity (m^2/s)",
+                   "channel_slope": "channel slope (m/m)",
+                   "bed+alluvium": "bed + alluvium (m)",
+                   "bed_slope": "bed slope (m/m)",
+                   "alluvium_slope": "alluvium slope (m/m)"}
 
         for fig, field in zip(figs, fields):
             plt.figure(fig)
@@ -430,48 +431,64 @@ class Model1D:
             axes.set_label
             if savedir:
                 fpath = path.Path(savedir)
-                fname = name + "_" + field + ".png"
+                fname = prefix + "_" + field + ".png"
                 plt.savefig(fpath / fname, bbox_inches='tight')
             plt.show()
 
     @staticmethod
-    def save_records_csv(records, savedir, fname):
+    def save_records_csv(records, savedir, fprefix="", context=False):
         folder = path.Path(savedir)
         for field in records:
             df = pd.DataFrame(records[field])
-            filename = fname + "_" + field + ".csv"
-            fpath = folder / filename
+            df = df.T
+            fname = fprefix + field + ".csv"
+            fpath = folder / fname
             df.to_csv(fpath, header=False, index=False)
+            if context:
+                df2 = pd.DataFrame()
+                df2["time"] = context["record_times"]
+                df2.to_csv(folder / "time.csv", header=True, index=False)
 
     @staticmethod
-    def discharge_calc_normal(downQ, dx, n, pup=0.5, pdown=0.2, hacks=0.56):
+    def read_records_csv(savedir, fname, headers):
         """
-        array of size n+1. It uses a quadratic->linear->quadratic relationship
-        for the lenght to area. If hacks is true then it uses hacks law with
-        parameters 
+        filename with extension. headers is a bool that should be true if the file has headers
         """
+        file = path.Path(savedir)
+        file = file / fname
+        pd.read_csv()
+
+    @staticmethod
+    def discharge_calc(downQ, dx, n, pup=0.5, pdown=0.2, hacks=0.56):
+        """
+        array of size n. It uses a quadratic->linear->quadratic relationship
+        for the lenght to area. It also returns Hack's law relationship reaching
+        the same downQ discharge
+        """
+        n = n - 1
         Q = pd.DataFrame()
         Q["x"] = np.arange(0, n * dx + dx, dx)
-        Q["y_hack"] = np.power(Q["x"], 0.6)
-        dq = [0] * (n+1)
+        Q["y_hack"] = (np.power(Q["x"], hacks) * downQ
+                       / (Q.iloc[-1]["x"] ** (hacks)))
+        dq = [0] * (n + 1)
         li = round(n * pup)
-        ri = round(n *(1-pdown))
+        ri = round(n * (1 - pdown))
 
-        l = n * dx
-        mid = (1 - pdown - pup) * l
-        h = 2 * downQ / (l + mid)
-    
-        step = h * dx / len(range(1, li+1))
-        for i in range(1, li+1):
-            dq[i] = dq[i-1] + step
+        long = n * dx
+        mid = (1 - pdown - pup) * long
+        h = 2 * downQ / (long + mid)
+
+        step = h * dx / len(range(1, li + 1))
+        for i in range(1, li + 1):
+            dq[i] = dq[i - 1] + step
         print(i)
         step = 0
-        for i in range(li,ri+1):
-            dq[i] = dq[i-1] + step
+        for i in range(li, ri + 1):
+            dq[i] = dq[i - 1] + step
         print(i)
-        step = -h * dx / len(range(ri, n+1))
-        for i in range(ri,n+1):
-            dq[i] = dq[i-1] + step
+        step = -h * dx / len(range(ri, n + 1))
+        for i in range(ri, n + 1):
+            dq[i] = dq[i - 1] + step
         print(i)
         Q["dy"] = np.array(dq)
         Q["y"] = Q["dy"].cumsum()
@@ -480,4 +497,6 @@ class Model1D:
         Q["logy"] = np.log(Q["y"])
         Q["logy_hack"] = np.log(Q["y_hack"])
 
+        Q.plot(x="x", y=["y", "y_hack"])
+        Q.plot(x="x", y=["y", "y_hack"], loglog=True)
         return Q

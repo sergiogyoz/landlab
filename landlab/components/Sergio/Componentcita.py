@@ -575,7 +575,8 @@ class Componentcita(Component):
                    * self.wear_coefficient
                    * self._grid.at_node["sed_capacity"]
                    * pa * (1 - pa) * dt)
-        self._grid.at_node["bedrock"] = self._grid.at_node["bedrock"] - erosion
+        erode = (erosion >= 0)
+        self._grid.at_node["bedrock"][erode] = self._grid.at_node["bedrock"][erode] - erosion[erode]
 
     def _mean_alluvium_change(self, dt):
         """

@@ -11,29 +11,40 @@ YEAR = 365.25 * 24 * 60 * 60
 
 # %%
 # params
-total_time = 3 * YEAR
-record_time = 0.25 * YEAR
+total_time = 1000 * YEAR
+record_time = 100 * YEAR
+sed_cycle = 40 * YEAR
 total_length = 20000
+reach_length = 200
 dt = 0.001 * YEAR
 time = np.arange(0, total_time + dt, dt)
+discharge = 300
 
 # %%
-# setup and run
-sed_data = Sedgraph.Zhang(time, dt, total_time)
-ngrid, nety = m1d.basegrid_1D(total_length=total_length)
+# setup
+sed_data = Sedgraph.Zhang(time, dt, sed_cycle)
+ngrid, nety = m1d.basegrid_1D(total_length=total_length,
+                              reach_length=reach_length)
+n = ngrid["node"].size
+Q = m1d.discharge_calc(downQ=discharge, dx=reach_length, n=n)
+
+ngrid["node"]["discharge"] = Q["y_hack"]
+
+# %%
+# run
 context, records = m1d.run_and_record_1D(ngrid=ngrid,
-                                                   nety=nety,
-                                                   sed_data=sed_data,
-                                                   dt=dt,
-                                                   total_time=total_time,
-                                                   record_time=record_time)
+                                         nety=nety,
+                                         sed_data=sed_data,
+                                         dt=dt,
+                                         total_time=total_time,
+                                         record_time=record_time)
 
 # %%
 # folder to save run results
-folder_name = "test"
-filesname = "test"
+folder_name = "1000y_qlq_hack"
+filesname = ""
 savedir = path.Path("C:/Users/Sergio/Documents/"
-                    + "GitHub/Sharing/Nicole/runs/"
+                    + "GitHub/Sharing/Nicole/runs/discharge/"
                     + folder_name)
 # create folders
 plotsdir = savedir / "plots"
