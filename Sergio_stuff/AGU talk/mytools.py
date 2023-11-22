@@ -448,28 +448,53 @@ class Model1D:
                 df2 = pd.DataFrame()
                 df2["time"] = context["record_times"]
                 df2.to_csv(folder / "time.csv", header=True, index=False)
+                df3 = pd.DataFrame()
+                df3["distance"] = context["x"]
+                df3.to_csv(folder / "space.csv", header=True, index=False)
 
     @staticmethod
-    def read_records_csv(savedir, fname, headers):
+    def read_records_csv(savedir, fname):
         """
-        filename with extension. headers is a bool that should be true if the file has headers
+        filename with extension. headers is a bool that should be
+        true if the file has headers.
+
+        returns dfs for data, time and x
         """
-        file = path.Path(savedir)
-        file = file / fname
-        pd.read_csv()
+        folder = path.Path(savedir)
+        file = folder / fname
+        tfile = folder / "time.csv"
+        xfile = folder / "space.csv"
+        df_data = pd.read_csv(file, header=None)
+        df_t = pd.read_csv(tfile)
+        df_x = pd.read_csv(xfile)
+        return df_data, df_t, df_x
 
     @staticmethod
-    def discharge_calc(downQ, dx, n, pup=0.5, pdown=0.2, hacks=0.56):
+    def discharge_calc(downQ, upQ, dx, n, pup=0.5, pdown=0.2, hacks=0.56):
         """
-        array of size n. It uses a quadratic->linear->quadratic relationship
-        for the lenght to area. It also returns Hack's law relationship reaching
-        the same downQ discharge
+        It creates discharge curves as an array of size n. This curve joins the
+        downQ and upQ using dx with two different approaches.
+        One uses a quadratic->linear->quadratic relationship to join them.
+        The other returns Hack's law relationship.
         """
         n = n - 1
         Q = pd.DataFrame()
         Q["x"] = np.arange(0, n * dx + dx, dx)
-        Q["y_hack"] = (np.power(Q["x"], hacks) * downQ
-                       / (Q.iloc[-1]["x"] ** (hacks)))
+        L = n * dx
+        # hack's law applied as D = C (l + a)^h with upQ=D(0) and downQ=D(L)
+        if upQ > 0:
+            oneoverh = 1 / hacks
+            a = L / ((downQ / upQ) ** oneoverh - 1)
+            C = upQ / (a ** hacks)
+        elif upQ == 0:
+            a = 0
+            C = downQ / (L ** hacks)
+        else:
+            raise (ValueError("negative discharge"))
+
+        Q["y_hack"] = C * np.power(Q["x"] + a, hacks)
+
+        # qlq curve always starts at Qup = 0 to make sense
         dq = [0] * (n + 1)
         li = round(n * pup)
         ri = round(n * (1 - pdown))
@@ -491,12 +516,14 @@ class Model1D:
             dq[i] = dq[i - 1] + step
         print(i)
         Q["dy"] = np.array(dq)
-        Q["y"] = Q["dy"].cumsum()
+        Q["y_qlq"] = Q["dy"].cumsum()
 
         Q["logx"] = np.log(Q["x"])
-        Q["logy"] = np.log(Q["y"])
+        Q["logyqlq"] = np.log(Q["y_qlq"])
         Q["logy_hack"] = np.log(Q["y_hack"])
 
-        Q.plot(x="x", y=["y", "y_hack"])
-        Q.plot(x="x", y=["y", "y_hack"], loglog=True)
+        Q.plot(x="x", y=["y_qlq", "y_hack"],
+               xlabel="downstream distance", ylabel="Discharge")
+        Q.plot(x="x", y=["y_qlq", "y_hack"], loglog=True,
+               xlabel="downstream distance", ylabel="Discharge")
         return Q
