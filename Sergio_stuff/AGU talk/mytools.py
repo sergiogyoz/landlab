@@ -428,12 +428,82 @@ class Model1D:
             axes.set_ylabel(ylabels[field], fontsize=20)
             axes.tick_params(labelsize=24)
             axes.legend(fontsize=14)
-            axes.set_label
             if savedir:
                 fpath = path.Path(savedir)
                 fname = prefix + "_" + field + ".png"
                 plt.savefig(fpath / fname, bbox_inches='tight')
             plt.show()
+
+    @staticmethod
+    def plot_1D_field_file(readdir, fname, ylabel, title,
+                           savedir=False, suptitle=False,
+                           from_time=False, to_time=False, dt_in_sec=-1):
+        """
+        returns the figure plotted. If savedir is provided it is saved on the
+        provided directory.
+        """
+        # prep
+        folder = path.Path(readdir)
+        file = folder / fname
+        tfile = folder / "time.csv"
+        xfile = folder / "space.csv"
+        df_data = pd.read_csv(file, header=None)
+        df_t = pd.read_csv(tfile)
+        df_x = pd.read_csv(xfile)
+
+        xs = df_x["distance"]
+        ts = df_t["time"]
+        from_t = ts[0] if not from_time else from_time
+        to_t = ts.iloc[-1] if not to_time else to_time
+
+        fig = plt.figure(1)
+
+        # only plot range from from_t to to_t
+        onestep = (ts[1] - ts[0])
+        dt_in_steps = round(dt_in_sec / onestep)
+        dt_in_steps = dt_in_steps if dt_in_steps > 1 else 1
+
+        ind_df = df_t[df_t["time"] <= to_t]
+        ind_df = ind_df[ind_df["time"] >= from_t]
+        ind_df = ind_df[::dt_in_steps]
+
+        # colors
+        norm = colorsmaps.Normalize(ind_df.iloc[0][0], ind_df.iloc[-1][0])
+        colormap = mpl.colormaps["plasma_r"]
+
+        # plot
+        for ind in ind_df.itertuples(index=True):
+            time, r = ind[1], ind[0]
+            label = f"t= {time / YEAR :.3f}"
+            plt.figure(fig)
+            y = df_data.iloc[:, r]
+            plt.plot(xs, y,
+                     color=colormap(norm(time)),
+                     label=label)
+            plt.close("all")
+
+        # labels and titles
+        field = fname[:-4]
+        xlabel = "downstream distance (m)"
+
+        fig.set_dpi(75)
+        fig.set_size_inches(18, 14)
+        axes = fig.axes[0]
+        for line in axes.get_lines():
+            line.set_linewidth(2.)
+        axes.set_title(title, fontsize=30)
+        if suptitle:
+            fig.suptitle(suptitle, fontsize=40)
+        axes.set_xlabel(xlabel, fontsize=20)
+        axes.set_ylabel(ylabel, fontsize=20)
+        axes.tick_params(labelsize=24)
+        axes.legend(fontsize=14)
+        if savedir:
+            fpath = path.Path(savedir)
+            fname = field + ".png"
+            plt.savefig(fpath / fname, bbox_inches='tight')
+        plt.show()
+        return fig
 
     @staticmethod
     def save_records_csv(records, savedir, fprefix="", context=False):
@@ -453,14 +523,14 @@ class Model1D:
                 df3.to_csv(folder / "space.csv", header=True, index=False)
 
     @staticmethod
-    def read_records_csv(savedir, fname):
+    def read_records_csv(readdir, fname):
         """
         filename with extension. headers is a bool that should be
         true if the file has headers.
 
         returns dfs for data, time and x
         """
-        folder = path.Path(savedir)
+        folder = path.Path(readdir)
         file = folder / fname
         tfile = folder / "time.csv"
         xfile = folder / "space.csv"
@@ -506,15 +576,12 @@ class Model1D:
         step = h * dx / len(range(1, li + 1))
         for i in range(1, li + 1):
             dq[i] = dq[i - 1] + step
-        print(i)
         step = 0
         for i in range(li, ri + 1):
             dq[i] = dq[i - 1] + step
-        print(i)
         step = -h * dx / len(range(ri, n + 1))
         for i in range(ri, n + 1):
             dq[i] = dq[i - 1] + step
-        print(i)
         Q["dy"] = np.array(dq)
         Q["y_qlq"] = Q["dy"].cumsum()
 

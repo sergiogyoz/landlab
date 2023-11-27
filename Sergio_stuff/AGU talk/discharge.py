@@ -11,7 +11,7 @@ YEAR = 365.25 * 24 * 60 * 60
 
 # %%
 # params
-total_time = 1500 * YEAR
+total_time = 2000 * YEAR
 record_time = 5 * YEAR
 sed_cycle = 40 * YEAR
 total_length = 20000
@@ -19,7 +19,7 @@ reach_length = 200
 dt = 0.001 * YEAR
 initial_slope = 0.003
 time = np.arange(0, total_time + dt, dt)
-updischarge = 100
+updischarge = 150
 downdischarge = 400
 # %%
 ys = ["y_hack", ]  # "y_qlq"]
@@ -43,18 +43,18 @@ for y, yname in zip(ys, names):
                                              record_time=record_time)
 
     # folder to save run results
-    folder_name = "2000y_Q_range_" + yname
+    folder_name = "2000_D" + yname
     savedir = path.Path("C:/Users/Sergio/Documents/"
                         + "GitHub/Sharing/Nicole/runs/discharge/"
                         + folder_name)
     # create folders
-    #plotsdir = savedir / "plots"
+    # plotsdir = savedir / "plots"
     datadir = savedir / "data"
-    #os.makedirs(plotsdir, exist_ok=True)
+    # os.makedirs(plotsdir, exist_ok=True)
     os.makedirs(datadir, exist_ok=True)
 
-    #m1d.plot_sed_graph(sed_data, fprefix, plotsdir)
-    #m1d.plot_1D_fields(context, records, fprefix, savedir=plotsdir)
+    # m1d.plot_sed_graph(sed_data, fprefix, plotsdir)
+    # m1d.plot_1D_fields(context, records, fprefix, savedir=plotsdir)
     m1d.save_records_csv(records, datadir, "", context)
 
 # %%
