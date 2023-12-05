@@ -13,24 +13,32 @@ from matplotlib.animation import FuncAnimation
 YEAR = 365.25 * 24 * 60 * 60
 # %%
 # read file
+n_plots = 2
+nrows = 2
+ncols = n_plots // nrows
+if n_plots % nrows > 0:
+    ncols = ncols + 1
+single_ind = (ncols == 1) or (nrows == 1)
+
 folder = path.Path("C:/Users/Sergio/Documents/"
                    + "GitHub/Sharing/Nicole/runs/discharge/"
-                   + "2000_D_doublehack")
+                   + "2000_Dhack")
 read_folder = folder / "data"
 
-files = ["bedrock.csv",
-         "sed_capacity.csv",
-         "mean_alluvium_thickness.csv",
-         "bed+alluvium.csv"]
-fields = ["bedrock",
+files = ["mean_alluvium_thickness.csv",
+         "bed+alluvium.csv",
+         "bedrock.csv",
+         "sed_capacity.csv"]
+fields = ["alluvium",
+          "bed+alluvium",
+          "bedrock",
           "sed capacity",
-          "alluvium",
-          "bed+alluvium"]
-units = [" (m)", " (m^2/s)", " (m)", " (m)"]
+          ]
+units = [" (m)", "(m)", " (m)", " (m^2/s)"]
 xlabel = "downstream distance"
-ylabels = [fields[i] + units[i] for i in range(4)]
+ylabels = [fields[i] + units[i] for i in range(n_plots)]
 alldata = []
-for i in range(4):
+for i in range(n_plots):
     data, time, space = m1d.read_records_csv(read_folder, files[i])
     alldata.append(data)
 
@@ -43,30 +51,16 @@ t = time["time"].values / YEAR
 
 
 # %%
-# extra stuff
-
-"""
-m1d.plot_1D_field_file(read_folder,
-                       files[1],
-                       ylabel=fields[1] + units[1],
-                       title=fields[1],
-                       from_time=10 * YEAR,
-                       to_time=90 * YEAR,
-                       dt_in_sec=10 * YEAR)
-"""
-# %%
-
-# %%
 # plot style
 total_frames = t[ind].size
 frames = list(ind[ind].index)
-base_frame = 30  # for axis lims
+base_frame = 80  # for axis lims
 n_stop_frames = 15  # = n - 1
 stop_frames = [0] * (n_stop_frames + 1)
 for i in range(n_stop_frames + 1):
     stop_frames[i] = frames[0] + (total_frames * i // n_stop_frames)
 
-fig, axs = plt.subplots(2, 2, sharex=True)
+fig, axs = plt.subplots(nrows=nrows, ncols=ncols, sharex=True)
 fig.set_dpi(75)
 fig.set_size_inches(24, 13.5)
 
@@ -80,8 +74,8 @@ cbar.ax.tick_params(labelsize=15)
 fig.subplots_adjust(right=0.75, wspace=0.2, hspace=0.2)
 
 lines = []
-for i in range(4):
-    index = (i // 2, i % 2)
+for i in range(n_plots):
+    index = i if single_ind else (i // nrows, i % nrows)
     axs[index].set_title(fields[i], fontsize=20)
     axs[index].set_xlabel(xlabel, fontsize=15)
     axs[index].set_ylabel(ylabels[i], fontsize=15)
@@ -91,15 +85,15 @@ for i in range(4):
     lines[i].set_linewidth(2.)
 
 stoplines = [[], [], [], []]
-for i in range(4):
-    index = (i // 2, i % 2)
+for i in range(n_plots):
+    index = i if single_ind else (i // nrows, i % nrows)
     for _j in range(n_stop_frames + 1):
         line, = axs[index].plot([], [])
         stoplines[i].append(line)
 
 # set xlim and ylim
-for i in range(4):
-    index = (i // 2, i % 2)
+for i in range(n_plots):
+    index = i if single_ind else (i // nrows, i % nrows)
 
     ymin = min(alldata[i][frames[0] + base_frame])
     ymax = max(alldata[i][frames[0] + base_frame])
@@ -120,7 +114,7 @@ stop_index = []
 def init():
     stop_index.clear()
     clear_stops = []
-    for i in range(4):
+    for i in range(n_plots):
         lines[i].set_data(x, alldata[i][0])
         for j in range(n_stop_frames + 1):
             stoplines[i][j].set_data([], [])
@@ -129,14 +123,14 @@ def init():
 
 
 def animate(j):
-    for i in range(4):
+    for i in range(n_plots):
         lines[i].set_data(x, alldata[i][j])
         lines[i].set_color(colormap(norm(t[j])))
 
     if j in stop_frames:
         k = len(stop_index)
         addlines = []
-        for i in range(4):
+        for i in range(n_plots):
             stoplines[i][k].set_data(x, alldata[i][j])
             stoplines[i][k].set_color(colormap(norm(t[j])))
             addlines.append(stoplines[i][k])
@@ -157,6 +151,6 @@ savedir = folder / "animations"
 os.makedirs(savedir, exist_ok=True)
 fname = "anim_x4" + ".mp4"
 plt.show()
-animation.save(savedir / fname, fps=30)
+animation.save(savedir / fname, fps=20)
 plt.close()
 # %%
