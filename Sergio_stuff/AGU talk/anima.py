@@ -20,9 +20,14 @@ if n_plots % nrows > 0:
     ncols = ncols + 1
 single_ind = (ncols == 1) or (nrows == 1)
 
-folder = path.Path("C:/Users/Sergio/Documents/"
+# Laptop
+folder = path.Path("C:/Users/Paquito/Desktop/"
                    + "GitHub/Sharing/Nicole/runs/discharge/"
                    + "2000_Dhack")
+# Office PC
+"""folder = path.Path("C:/Users/Sergio/Documents/"
+                   + "GitHub/Sharing/Nicole/runs/discharge/"
+                   + "2000_Dhack")"""
 read_folder = folder / "data"
 
 files = ["mean_alluvium_thickness.csv",

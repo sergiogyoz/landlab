@@ -38,7 +38,7 @@ Q = m1d.discharge_calc(downQ=downdischarge,
                        dx=reach_length, n=n)
 data["x"] = Q["x"]
 data["dis"] = Q[key]
-
+# %%
 updischarge = 150 * 2
 downdischarge = 400 * 2
 Q = m1d.discharge_calc(downQ=downdischarge,
@@ -62,8 +62,14 @@ sn.despine(left=True, bottom=True)
 # %%
 
 # folder to save plot
+# desktop
 folder_name = "discharge_plots"
-savedir = path.Path("C:/Users/Sergio/Documents/"
+"""savedir = path.Path("C:/Users/Sergio/Documents/"
+                    + "GitHub/Sharing/Nicole/runs/discharge/"
+                    + folder_name)
+"""
+# laptop
+savedir = path.Path("C:/Users/Paquito/Desktop/"
                     + "GitHub/Sharing/Nicole/runs/discharge/"
                     + folder_name)
 os.makedirs(savedir, exist_ok=True)
