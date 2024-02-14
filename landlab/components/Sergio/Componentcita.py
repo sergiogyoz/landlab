@@ -345,10 +345,10 @@ class Componentcita(Component):
 
     def _find_joints(self):
         """
-        Returns the ids of nodes at the joint locations.
+        Returns the ids of nodes at the joint locations and the upstream node.
         """
-        nodes = nodes = np.arange(0, self._grid["node"].size, 1)
-        mask = np.full_like(nodes, True)
+        nodes = np.arange(0, self._grid["node"].size, 1)
+        mask = np.full_like(nodes, True, dtype="bool")
         # remove outlet nodes
         mask[self.outlets] = False
         candidates = nodes[mask]
@@ -417,6 +417,9 @@ class Componentcita(Component):
         Returns the channel slopes using the mean alluvium cover and the
         bedrock.
 
+        At joints it calculates an weighted average slope using the
+        discharge from the tributaries as weights.
+
         Additional parameter used helps smooth peaks caused by the numerical
         instability of the central difference when calculating the slopes.
         The order of the approximation reduces in exchange for less
@@ -430,6 +433,18 @@ class Componentcita(Component):
         S = -(- c * y[self._unode]
               + (2 * c - 1) * y
               + (1 - c) * y[self._dnode]) / dx
+
+        # joint upstream weighted slope
+        for joint in self.joints:
+            weight = (self._grid.at_node["discharge"][self.ujoints[joint]]
+                      / np.sum(self._grid.at_node["discharge"][self.ujoints[joint]]))
+            dnode = self._dnode[joint]
+            Sjoint = -(- c * y[self.ujoints[joint]]
+                       + (2 * c - 1) * y[joint]
+                       + (1 - c) * y[dnode]) / dx[joint]
+            S[joint] = np.sum(weight * Sjoint)
+
+        # edge cases for boundary calculations
         if (c == 0) or (c == 1):
             pass
         else:
@@ -448,11 +463,19 @@ class Componentcita(Component):
         FUUUUUUCK I have to modify this to work in a network by
         using a more complicated formula, I'll need to store the
         upstream and downstream distances.
+
+        not so Fuck now, but I still need to modify how it behaves 
+        at joints.
         """
 
         dis_up = (np.square(self._grid.x_of_node[self._unode] - self._grid.x_of_node)
                   + np.square(self._grid.y_of_node[self._unode] - self._grid.y_of_node))
         dis_up = np.sqrt(dis_up)
+
+        # joint upstream mean distance
+        up_joint_dis = [np.mean(dis_up[self.ujoints[joint]]) for joint in self.joints]
+        up_joint_dis = np.array(up_joint_dis)
+        dis_up[self.joints] = up_joint_dis
 
         dis_down = (np.square(self._grid.x_of_node - self._grid.x_of_node[self._dnode])
                     + np.square(self._grid.y_of_node - self._grid.y_of_node[self._dnode]))
@@ -563,7 +586,7 @@ class Componentcita(Component):
         """
         Applies bed erosion discretizing the differential equation
         of the bed in the upstream nodes (representing the link downstream).
-        Must be called after updating sediment capacity,
+        Must be called AFTER updating sediment capacity,
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
         if self.corrected:
@@ -585,6 +608,7 @@ class Componentcita(Component):
         Must be called after updating sediment capacity,
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
+
         dx = self._grid.at_node["reach_length"]
         if self.corrected:
             p = self._grid.at_node["fraction_alluvium_avaliable"]
@@ -597,6 +621,12 @@ class Componentcita(Component):
         dpq = (- c * pq[self._unode]
                + (2 * c - 1) * pq
                + (1 - c) * pq[self._dnode])
+        # joint flux calculations
+        up_joint_pq = [np.sum(pq[self.ujoints[joint]]) for joint in self.joints]
+        up_joint_pq = np.array(up_joint_pq)
+        dpq[self.joints] = (-c * up_joint_pq
+                            + (2 * c - 1) * pq[self.joints]
+                            + (1 - c) * pq[self._dnode[self.joints]])
         if (c == 1) or (c == 0):
             pass
         else:
