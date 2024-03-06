@@ -49,7 +49,7 @@ class Grid_geometry:
 
         x_of_node = [i for i in range(n)]  # 0,1,...,n-1
         y_of_node = [0 for i in range(n)]
-        steep = [(n-1-i) * steepness for i in range (n)]
+        steep = [(n - 1 - i) * steepness for i in range (n)]
 
         x_vert = [midn for i in range(1, m)]  # n,..., n+m-1
         y_vert = [i for i in range(1, m)]
@@ -262,7 +262,7 @@ class Model1D:
         context["fields"] = fields + extras
         return context, records
 
-    @staticmethod  # deprecated, left for backward compatibility
+    @staticmethod  # deprecated, left for backwards compatibility
     def model1D(total_length=2000,
                 reach_length=200,
                 initial_slope=0.004,
