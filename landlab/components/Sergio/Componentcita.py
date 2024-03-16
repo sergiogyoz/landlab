@@ -236,9 +236,6 @@ class Componentcita(Component):
             Bedload sediment porosity. Defaults to 0.35
         spec_grav: float
             Specific gravity of sediment. Defaults to 1.65
-        k_viscosity: float
-            Kinematic viscosity of water. Defaults to 10**-6, the kinematic
-            viscosity of water (at 20C)
         p0: float
             Lower percentage of bed cover (deep pockets). Defaults to 0.05 = 5%
         p1: float
@@ -277,7 +274,6 @@ class Componentcita(Component):
 
         self.porosity = kwargs["porosity"] if "porosity" in kwargs else 0.35
         self.spec_grav = kwargs["spec_grav"] if "spec_grav" in kwargs else 1.65
-        self.v = kwargs["k_viscosity"] if "k_viscosity" in kwargs else 10**-6
 
         self.p0 = kwargs["p0"] if "p0" in kwargs else 0.05
         self.p1 = kwargs["p1"] if "p1" in kwargs else 0.95
@@ -327,7 +323,6 @@ class Componentcita(Component):
         on the model by Zhang et al (2015,2018)
         """
         # calculate parameters needed in the pde
-        tau_star_crit = self._critical_shear_star()  # can be ignored, we use 0.0495 from the paper
         tau_star_crit = self.sstau_star_c
         tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover(self.p0, self.p1)
@@ -464,7 +459,7 @@ class Componentcita(Component):
         using a more complicated formula, I'll need to store the
         upstream and downstream distances.
 
-        not so Fuck now, but I still need to modify how it behaves 
+        not so Fuck now, but I still need to modify how it behaves
         at joints.
         """
 
@@ -511,27 +506,6 @@ class Componentcita(Component):
             / self.spec_grav
             / self._grid.at_node["sediment_grain_size"])
         return tau_star
-
-    def _critical_shear_star(self, method="Parker"):
-        """
-        Returns vector of the dimentionless critical shear stress based on grain size
-        diameters using the corresponding method. Only Parker is implemented now.
-            method: "Parker"
-                Brownlie corrected formula.
-            method: "Soulsby"
-                Soulsby and Whitehouse formulation
-            method: "Meyer"
-                Meyer-Peter and Muller formulation
-            method: Wilcock and Crowe
-                Wilcock potential formualtion. Requires addicional parameters.
-        """
-        Re = (np.sqrt(self.spec_grav * self.G
-                      * self._grid.at_node["sediment_grain_size"])
-              * self._grid.at_node["sediment_grain_size"] / self.v)
-        Re6 = np.power(Re, -0.6)
-        if method == "Parker":
-            tau_c_star = 0.5 * (0.22 * Re6 + 0.06 * np.power(10, -7.7 * Re6))
-        return tau_c_star
 
     def _calculate_fraction_alluvium_cover(self, p0=0.05, p1=0.95):
         """
