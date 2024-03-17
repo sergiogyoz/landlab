@@ -100,7 +100,7 @@ class Componentcita(Component):
             "optional": False,
             "units": "m",
             "mapping": "node",
-            "doc": "River channel (link upstream + link downstream) lenght",
+            "doc": "River channel weight average between (links upstream + link downstream) lenght",
         },
         "wear_coefficient": {
             "dtype": float,
@@ -455,10 +455,6 @@ class Componentcita(Component):
         found with up and down nodes and so the reach length is
         the total distance between those.
 
-        FUUUUUUCK I have to modify this to work in a network by
-        using a more complicated formula, I'll need to store the
-        upstream and downstream distances.
-
         not so Fuck now, but I still need to modify how it behaves
         at joints.
         """
@@ -540,11 +536,9 @@ class Componentcita(Component):
 
     def _calculate_sed_capacity(self, tau_star, tau_star_crit=0.0495):
         """
-        Calculates sediment flow capacity for a link and stores it at
-        the upstream node field "sed_capacity". It uses the formula
-        bla bla bla and ignores tau star crit
-        the real issue is that the threshold of motion doesn't
-        depend on the grain size which concerns me...
+        Calculates sediment flow capacity for a node and stores it at
+        the upstream node field "sed_capacity" using Parker and Wong
+        formulation q_ac = 4 sqrt( RgD ) D (tau* - tau_c*)^(3/2)
         """
         excess_shear = tau_star - tau_star_crit
         zeromask = np.ones_like(excess_shear)
