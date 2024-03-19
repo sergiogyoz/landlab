@@ -61,37 +61,21 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Sediment grain size on the node (single size sediment).",
         },
-        "specific_gravity": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "-",
-            "mapping": "node",
-            "doc": "Submerged specific gravity of sediment.",
-        },
-        "dimentionless_Chezy": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "-",
-            "mapping": "node",
-            "doc": "Dimentionless Chezy C coefficient calculated as Cz=U/sqrt(tau/rho).",
-        },
-        "sediment_porosity": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "-",
-            "mapping": "node",
-            "doc": "Porosity of the alluvium.",
-        },
         "macroroughness": {
             "dtype": float,
             "intent": "in",
             "optional": False,
             "units": "m",
             "mapping": "node",
-            "doc": "Thickness of macroroughness layer. See Zhang paper",
+            "doc": "Thickness of macroroughness layer. See Zhang 2015 paper",
+        },
+        "reach_length": {
+            "dtype": float,
+            "intent": "out",
+            "optional": False,
+            "units": "m",
+            "mapping": "node",
+            "doc": "River channel lenght = weighted average (links upstream + link downstream)  ",
         },
         "wear_coefficient": {
             "dtype": float,
@@ -99,31 +83,7 @@ class Componentcita(Component):
             "optional": True,
             "units": "m",
             "mapping": "node",
-            "doc": "Beta. Wear coefficient. See Sklar and Dietrich 2004",
-        },
-        "abrasion_coefficient": {
-            "dtype": float,
-            "intent": "inout",
-            "optional": True,
-            "units": "m",
-            "mapping": "node",
-            "doc": "Alpha. Abrasion coefficient defined by Sternberg's law is. See Sklar and Dietrich 2004",
-        },
-        "uplift_rate": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "m/kyr",
-            "mapping": "node",
-            "doc": "local uplift rate. (set instead on the component parameters for constant uplift)",
-        },
-        "sedimentograph_info": {
-            "dtype": float,
-            "intent": "in",
-            "optional": True,
-            "units": "m",
-            "mapping": "node",
-            "doc": "This is really used more as 4/2 parameters in the model, recheck when the modelling time comes. Mean bedload feed rate averaged over sedimentograph",
+            "doc": "Beta. Sediment Wear coefficient. See Sklar and Dietrich 2004",
         },
         "sed_capacity": {
             "dtype": float,
@@ -211,8 +171,10 @@ class Componentcita(Component):
         discharge: float
             if not provided as a landlab field flow discharge in m^3/s.
             Defaults to 300 m^3/s constant along the network.
-        Cz: float
-            Dimentionless Chezy resistance coeff. Defaults to 10
+        Cz: float or grid
+            Dimentionless Chezy resistance coeff calculated is
+            as Cz=U/sqrt(tau/rho) as in Parker & Wong 2006.
+            Defaults to 10.
         beta: float
             Related to sediment abrasion as beta = 3*alpha. Units of 1/m.
             Defaults to 0.05*0.001
@@ -307,7 +269,7 @@ class Componentcita(Component):
         self._dx, self._j_dx = self._calculate_dx()
         self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
-        # don't know yet how to handle these
+        # currently not handled as only the open boundary case is dealt with
 
     def run_one_step(self, dt, q_in=-1):
         """
@@ -315,6 +277,7 @@ class Componentcita(Component):
         on the model by Zhang et al (2015,2018)
         """
         # calculate parameters needed in the pde
+        tau_star_crit = self._critical_shear_star()  # currently ignored, we use 0.0495 from the paper
         tau_star_crit = self.sstau_star_c
         tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover(self.p0, self.p1)
