@@ -1,5 +1,4 @@
 import numpy as np
-import copy
 from landlab import Component
 
 from landlab.components import FlowDirectorSteepest
@@ -93,14 +92,6 @@ class Componentcita(Component):
             "units": "m",
             "mapping": "node",
             "doc": "Thickness of macroroughness layer. See Zhang paper",
-        },
-        "reach_length": {
-            "dtype": float,
-            "intent": "out",
-            "optional": False,
-            "units": "m",
-            "mapping": "node",
-            "doc": "River channel weight average between (links upstream + link downstream) lenght",
         },
         "wear_coefficient": {
             "dtype": float,
@@ -297,7 +288,7 @@ class Componentcita(Component):
         # bedrock topography by default
         self._topo = self._grid.at_node["topographic__elevation"]
         if not self._grid.has_field("bedrock", at="node"):
-            self._grid.add_field("bedrock", copy.copy(self._topo), at="node")
+            self._grid.add_field("bedrock", self._topo, at="node", copy=True)
         # and flow__sender_node to nodes
         if not self._grid.has_field("flow__sender_node", at="node"):
             self._add_flow_sender_node()
@@ -309,10 +300,11 @@ class Componentcita(Component):
         self.sources = self._find_sources()
         # finds the joints for special calculations
         self.joints, self.ujoints = self._find_joints()
-        # add ouput fields
+        # add output fields
         self.initialize_output_fields()
         # update channel slopes
-        self._calculate_reach_length()
+        self._downstream_distance = self._calculate_reach_length()
+        self._dx, self._j_dx = self._calculate_dx()
         self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
         # don't know yet how to handle these
@@ -340,7 +332,8 @@ class Componentcita(Component):
 
     def _find_joints(self):
         """
-        Returns the ids of nodes at the joint locations and the upstream node.
+        Returns the ids of nodes at the joint locations and their
+        upstream nodes.
         """
         nodes = np.arange(0, self._grid["node"].size, 1)
         mask = np.full_like(nodes, True, dtype="bool")
@@ -373,7 +366,7 @@ class Componentcita(Component):
         """
         node = np.arange(0, self._grid["node"].size, 1)
         sender = np.arange(0, self._grid["node"].size, 1)
-        receiver = copy.copy(self._grid["node"]["flow__receiver_node"])
+        receiver = np.copy(self._grid["node"]["flow__receiver_node"])
         non_idem = (receiver != node)
         sender[receiver[non_idem]] = node[non_idem]
         self._grid.add_field(
@@ -422,12 +415,11 @@ class Componentcita(Component):
         """
 
         c = self.su
-        dx = self._grid.at_node["reach_length"]
         y = self._grid.at_node["bedrock"] + self._grid.at_node["mean_alluvium_thickness"]
 
         S = -(- c * y[self._unode]
               + (2 * c - 1) * y
-              + (1 - c) * y[self._dnode]) / dx
+              + (1 - c) * y[self._dnode]) / self._dx
 
         # joint upstream weighted slope
         for joint in self.joints:
@@ -436,7 +428,8 @@ class Componentcita(Component):
             dnode = self._dnode[joint]
             Sjoint = -(- c * y[self.ujoints[joint]]
                        + (2 * c - 1) * y[joint]
-                       + (1 - c) * y[dnode]) / dx[joint]
+                       + (1 - c) * y[dnode]) / self._j_dx[joint]
+            Sjoint[Sjoint < 0] = 0  # as implemented on the original code model
             S[joint] = np.sum(weight * Sjoint)
 
         # edge cases for boundary calculations
@@ -445,36 +438,41 @@ class Componentcita(Component):
         else:
             S[self.sources] = S[self.sources] / (1 - c)
             S[self.outlets] = S[self.outlets] / (c)
-        S[S < 0] = 0  # as implemented on the original code
+        S[S < 0] = 0  # as implemented on the original code model
         self._grid.at_node["channel_slope"] = S
 
     def _calculate_reach_length(self):
         """
-        This calculates the reach length based on the appropiate
-        slope formula. In the default case every point slope is
-        found with up and down nodes and so the reach length is
-        the total distance between those.
-
-        not so Fuck now, but I still need to modify how it behaves
-        at joints.
+        Returns the reach length downstream at every node.
+        It is currently used in the calculations for dx in every
+        diff equation and slope calculation (also the slope as
+        S = dz/dx). This doesn't mean that dx is simply the
+        downstream distance, even more so at junctions. See
+        slope and alluvium change functions
         """
-
-        dis_up = (np.square(self._grid.x_of_node[self._unode] - self._grid.x_of_node)
-                  + np.square(self._grid.y_of_node[self._unode] - self._grid.y_of_node))
-        dis_up = np.sqrt(dis_up)
-
-        # joint upstream mean distance
-        up_joint_dis = [np.mean(dis_up[self.ujoints[joint]]) for joint in self.joints]
-        up_joint_dis = np.array(up_joint_dis)
-        dis_up[self.joints] = up_joint_dis
-
         dis_down = (np.square(self._grid.x_of_node - self._grid.x_of_node[self._dnode])
                     + np.square(self._grid.y_of_node - self._grid.y_of_node[self._dnode]))
         dis_down = np.sqrt(dis_down)
+        return dis_down
 
-        self._grid.at_node["reach_length"] = (dis_up + dis_down) / 2
-        self._grid.at_node["reach_length"][self.sources] = dis_down[self.sources]
-        self._grid.at_node["reach_length"][self.outlets] = dis_up[self.outlets]
+    def _calculate_dx(self):
+        """
+        Uses downstream distances to calculate the appropiate dx
+        used in the differential equations as the mean of upstream
+        and downstream distance for every node. It also returns the
+        a list of dx for each joint upstream node. 
+        """
+        dx = (self._downstream_distance[self._unode]
+              + self._downstream_distance[self._dnode]) / 2
+        # fix sources and outlets
+        dx[self.sources] = self._downstream_distance[self.sources]
+        dx[self.outlets] = self._downstream_distance[self._unode[self.outlets]]
+        # do dx joint calculations separately
+        j_dx = {}
+        for joint in self.joints:
+            j_dx[joint] = (self._downstream_distance[self.ujoints[joint]]
+                           + self._downstream_distance[joint]) / 2
+        return dx, j_dx
 
     def _calculate_flow_depths(self):
         """
@@ -528,7 +526,7 @@ class Componentcita(Component):
         it uses yet another linear function to remove non-zero transport under lack
         of sediment conditions (in deep pockets).
         """
-        p = copy.copy(self._grid.at_node["fraction_alluvium_cover"])
+        p = np.copy(self._grid.at_node["fraction_alluvium_cover"])
         self._grid.at_node["fraction_alluvium_avaliable"] = (p - p0) / (1 - p0)
         # make sure no negative alluvium is avaliable for transport
         zeros = (self._grid.at_node["fraction_alluvium_avaliable"] < 0)
@@ -908,8 +906,8 @@ class Componentcita(Component):
         """
         self._grid.nodes_at_link
         # making a copy instead of a reference.... I'm unsure yet if I should
-        tail_nodes = copy.copy(self._grid.nodes_at_link[:, 0])
-        head_nodes = copy.copy(self._grid.nodes_at_link[:, 1])
+        tail_nodes = np.copy(self._grid.nodes_at_link[:, 0])
+        head_nodes = np.copy(self._grid.nodes_at_link[:, 1])
         upstream_nodes = np.where(
             self._grid["link"]["flow__link_direction"] == 1,
             tail_nodes,
