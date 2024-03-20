@@ -37,14 +37,6 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Unit width morphodynamically active water discharge.",
         },
-        "flood_intermittency": {
-            "dtype": float,
-            "intent": "in",
-            "optional": False,
-            "units": "-",
-            "mapping": "node",
-            "doc": "Fraction of time when the river is morphodynamically active: former value used when bedrock morphodynamics is considered",
-        },
         "channel_width": {
             "dtype": float,
             "intent": "in",
@@ -52,6 +44,14 @@ class Componentcita(Component):
             "units": "m",
             "mapping": "node",
             "doc": "Channel link average width",
+        },
+        "flood_intermittency": {
+            "dtype": float,
+            "intent": "in",
+            "optional": False,
+            "units": "-",
+            "mapping": "node",
+            "doc": "Fraction of time when the river is morphodynamically active: former value used when bedrock morphodynamics is considered",
         },
         "sediment_grain_size": {
             "dtype": float,
@@ -61,14 +61,6 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Sediment grain size on the node (single size sediment).",
         },
-        "macroroughness": {
-            "dtype": float,
-            "intent": "in",
-            "optional": False,
-            "units": "m",
-            "mapping": "node",
-            "doc": "Thickness of macroroughness layer. See Zhang 2015 paper",
-        },
         "reach_length": {
             "dtype": float,
             "intent": "out",
@@ -77,37 +69,13 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "River channel lenght = weighted average (links upstream + link downstream)  ",
         },
-        "wear_coefficient": {
-            "dtype": float,
-            "intent": "inout",
-            "optional": True,
-            "units": "m",
-            "mapping": "node",
-            "doc": "Beta. Sediment Wear coefficient. See Sklar and Dietrich 2004",
-        },
         "sed_capacity": {
             "dtype": float,
-            "intent": "inout",
+            "intent": "out",
             "optional": False,
             "units": "m",
             "mapping": "node",
             "doc": "Sediment capacity of the link stored at the upstream node of each link",
-        },
-        "channel_slope": {
-            "dtype": float,
-            "intent": "out",
-            "optional": False,
-            "units": "-",
-            "mapping": "node",
-            "doc": "Channel slopes from bedrock elevation",
-        },
-        "mean_alluvium_thickness": {
-            "dtype": float,
-            "intent": "inout",
-            "optional": False,
-            "units": "m",
-            "mapping": "node",
-            "doc": "Mean alluvium thickness as described in L. Zhang 2015",
         },
         "bedrock": {
             "dtype": float,
@@ -116,6 +84,22 @@ class Componentcita(Component):
             "units": "m",
             "mapping": "node",
             "doc": "Bedrock elevation",
+        },
+        "macroroughness": {
+            "dtype": float,
+            "intent": "in",
+            "optional": False,
+            "units": "m",
+            "mapping": "node",
+            "doc": "Thickness of macroroughness layer. See Zhang 2015 paper",
+        },
+        "mean_alluvium_thickness": {
+            "dtype": float,
+            "intent": "inout",
+            "optional": False,
+            "units": "m",
+            "mapping": "node",
+            "doc": "Mean alluvium thickness as described in L. Zhang 2015",
         },
         "fraction_alluvium_cover": {
             "dtype": float,
@@ -168,15 +152,41 @@ class Componentcita(Component):
             :py:class:`~landlab.components.FlowDirectorSteepest`.
         clobber: bool
             currently not implemented. Defaults to False
-        discharge: float
-            if not provided as a landlab field flow discharge in m^3/s.
-            Defaults to 300 m^3/s constant along the network.
+        discharge: float or grid
+            in case it is not provided as a landlab field flow it can be
+            provided here as a constant or the grid values. Discharge units
+            are in m^3/s. Defaults to 300 m^3/s if not provided.
+        flood_intermittency: float or grid
+            in case it is not provided as a landlab field flow it can be
+            provided here as a constant or the grid values. Units are in
+            percentages. Defaults to 0.05 = 5%
+        channel_width: float or grid
+            in case it is not provided as a landlab field flow it can be
+            provided here as a constant or the grid values. Units are in
+            m (meters). Defaults to 100 m
+        sediment_grain_size: float or grid
+            while it is currently a landlab field there's no calculation
+            that keeps track of different sediment grain sizes as they
+            move along the network. This could be done separately and
+            updated here if needed. Units are in m. Defaults to 0.02 m
+        macroroughness: float or grid
+            scale of the macroroughness of the bed over which alluvium 
+            cover is relevant on the erosional process.
+            in case it is not provided as a landlab field flow it can be
+            provided here as a constant or the grid values. Units are in
+            m (meters). Defaults to 1 m
+        mean_alluvium_thickness: float or grid
+            initial depth of the alluvium cover of the bedrock.
+            in case it is not provided as a landlab field flow it can be
+            provided here as a constant or the grid values. Units are in
+            m (meters). Defaults to 0.5 m
         Cz: float or grid
             Dimentionless Chezy resistance coeff calculated is
             as Cz=U/sqrt(tau/rho) as in Parker & Wong 2006.
             Defaults to 10.
         beta: float
             Related to sediment abrasion as beta = 3*alpha. Units of 1/m.
+            Beta. Sediment Wear coefficient. See Sklar and Dietrich 2004.
             Defaults to 0.05*0.001
         shear_coeff: float
             Sediment transport capacity coefficient (eq 5c). Defaults to 4
@@ -228,10 +238,30 @@ class Componentcita(Component):
         self.porosity = kwargs["porosity"] if "porosity" in kwargs else 0.35
         self.spec_grav = kwargs["spec_grav"] if "spec_grav" in kwargs else 1.65
 
+        # deep pockets cover and maximum effective cover
         self.p0 = kwargs["p0"] if "p0" in kwargs else 0.05
         self.p1 = kwargs["p1"] if "p1" in kwargs else 0.95
 
-        # deep pockets cover and maximum effective cover
+        # initial conditions if provided as parameters
+        input_fields = {"discharge": 300,
+                        "flood_intermittency": 0.05,
+                        "channel_width": 100,
+                        "sediment_grain_size": 0.02,
+                        "sed_capacity": 0,
+                        "macroroughness": 1,
+                        "mean_alluvium_thickness": 0.5
+                        }
+        for field in input_fields:
+            # if not currently a field then added it
+            if not self._grid.has_field(field, at="node"):
+                self._grid.add_zeros(field)
+                if not (field in kwargs):
+                    # if not provided then use default values
+                    self._grid.at_node[field] = input_fields[field]
+            # if provided as parameters then replace anything
+            if field in kwargs:
+                self._grid.at_node[field] = kwargs[field]
+
         # it must be a NetworkModelGrid
         if not isinstance(grid, NetworkModelGrid):
             msg = "NetworkSedimentTransporter: grid must be NetworkModelGrid"
@@ -255,8 +285,8 @@ class Componentcita(Component):
         if not self._grid.has_field("flow__sender_node", at="node"):
             self._add_flow_sender_node()
         # add upstream and downstream field to each link
-        self._dnode = self._grid["node"]["flow__receiver_node"]
-        self._unode = self._grid["node"]["flow__sender_node"]
+        self._dnode = self._grid.at_node["flow__receiver_node"]
+        self._unode = self._grid.at_node["flow__sender_node"]
         # adds outlets and sources
         self.outlets = self._find_outlets()
         self.sources = self._find_sources()
@@ -267,7 +297,7 @@ class Componentcita(Component):
         # update channel slopes
         self._downstream_distance = self._calculate_reach_length()
         self._dx, self._j_dx = self._calculate_dx()
-        self._update_channel_slopes()
+        self.slope = self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
         # currently not handled as only the open boundary case is dealt with
 
@@ -291,7 +321,7 @@ class Componentcita(Component):
         self._mean_alluvium_change(dt)
         # update slopes
         self._boundary_conditions_postcalc()
-        self._update_channel_slopes()
+        self.slope = self._update_channel_slopes()
 
     def _find_joints(self):
         """
@@ -402,7 +432,7 @@ class Componentcita(Component):
             S[self.sources] = S[self.sources] / (1 - c)
             S[self.outlets] = S[self.outlets] / (c)
         S[S < 0] = 0  # as implemented on the original code model
-        self._grid.at_node["channel_slope"] = S
+        return S
 
     def _calculate_reach_length(self):
         """
@@ -423,7 +453,7 @@ class Componentcita(Component):
         Uses downstream distances to calculate the appropiate dx
         used in the differential equations as the mean of upstream
         and downstream distance for every node. It also returns the
-        a list of dx for each joint upstream node. 
+        a list of dx for each joint upstream node.
         """
         dx = (self._downstream_distance[self._unode]
               + self._downstream_distance[self._dnode]) / 2
@@ -443,7 +473,7 @@ class Componentcita(Component):
         H = [Q^2 / g*S*B^2*Cz^2]^(1/3)
         """
         H = ((self._grid.at_node["discharge"] * self._grid.at_node["discharge"])
-             / (self.G * self._grid.at_node["channel_slope"]
+             / (self.G * self.slope
                 * np.square(self._grid.at_node["channel_width"])
                 * self.Cz * self.Cz)) ** (1 / 3)
         return H
@@ -459,7 +489,7 @@ class Componentcita(Component):
             / (self.Cz * self.Cz)
             / self.G,
             1 / 3)
-            * np.power(self._grid.at_node["channel_slope"], 2 / 3)
+            * np.power(self.slope, 2 / 3)
             / self.spec_grav
             / self._grid.at_node["sediment_grain_size"])
         return tau_star
@@ -815,6 +845,8 @@ class Componentcita(Component):
 
         If values are provided (all should be provided) then use the kwargs
         for each of the fields. See non existing example.
+
+        Most functionality has been moved to the initialization directly
         """
         valid_fields = {"discharge": 300,
                         "flood_intermittency": 0.05,
