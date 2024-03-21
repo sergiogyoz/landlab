@@ -156,8 +156,8 @@ class Model1D:
                           show_timer=True
                           ):
         # downstream distance for plots
-        xs = np.copy(ngrid.at_node["reach_length"])
-        xs = np.cumsum(xs) - xs[0]
+        xs = np.zeros_like(nety._downstream_distance)
+        xs[1:] = np.cumsum(nety._downstream_distance[:-1])
         times = np.arange(0, total_time + dt, dt)
         sed_graph = sed_data["sedgraph"]
 
@@ -168,7 +168,7 @@ class Model1D:
             fields = ["bedrock",
                       "mean_alluvium_thickness",
                       "sed_capacity",
-                      "channel_slope"]
+                      "channel_slope"]  # no longer a landlab field
         if extra_fields:
             extras = []
         else:
@@ -197,21 +197,25 @@ class Model1D:
                 timer.clock(show=show_timer)
                 # store records
                 for field in fields:
-                    records[field][r_ind] = ngrid.at_node[field]
+                    # compatibility after channel slope was removed as a field
+                    if field == "channel_slope":
+                        records[field][r_ind] = nety.slope
+                    else:
+                        records[field][r_ind] = ngrid.at_node[field]
                 if not extra_fields:
                     # alluvium + bed
-                    y = ngrid.at_node[fields[0]] + ngrid.at_node[fields[1]]
-                    records[extras[0]][r_ind] = y
+                    y = ngrid.at_node["bedrock"] + ngrid.at_node["mean_alluvium_thickness"]
+                    records["bed+alluvium"][r_ind] = y
                     # bed slope
-                    y = ((ngrid.at_node[fields[0]][nety._unode]
-                         - ngrid.at_node[fields[0]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                    y = ((ngrid.at_node["bedrock"][nety._unode]
+                         - ngrid.at_node["bedrock"][nety._dnode])
+                         / nety._dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
-                    y = ((ngrid.at_node[fields[1]][nety._unode]
-                         - ngrid.at_node[fields[1]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                    y = ((ngrid.at_node["mean_alluvium_thickness"][nety._unode]
+                         - ngrid.at_node["mean_alluvium_thickness"][nety._dnode])
+                         / nety._dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1
@@ -288,8 +292,8 @@ class Model1D:
                                   au=allu_smooth, su=slope_smooth)
 
         # downstream distance for plots
-        xs = np.copy(ngrid.at_node["reach_length"])
-        xs = np.cumsum(xs) - xs[0]
+        xs = np.zeros_like(nety._downstream_distance)
+        xs[1:] = np.cumsum(nety._downstream_distance[:-1])
         times = np.arange(0, total_time + dt, dt)
 
         # sedimentograph at the source nodes
@@ -339,7 +343,11 @@ class Model1D:
                 timer.clock(show=show_timer)
                 # store records
                 for field in fields:
-                    records[field][r_ind] = ngrid.at_node[field]
+                    # backward compatibility as channel_slope was removed from the fields
+                    if field == "channel_slope":
+                        records[field][r_ind] = nety.slope
+                    else:
+                        records[field][r_ind] = ngrid.at_node[field]
                 if not extra_fields:
                     # alluvium + bed
                     y = ngrid.at_node[fields[0]] + ngrid.at_node[fields[1]]
@@ -347,13 +355,13 @@ class Model1D:
                     # bed slope
                     y = ((ngrid.at_node[fields[0]][nety._unode]
                          - ngrid.at_node[fields[0]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety._dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
                     y = ((ngrid.at_node[fields[1]][nety._unode]
                          - ngrid.at_node[fields[1]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety._dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1

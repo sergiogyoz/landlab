@@ -61,14 +61,6 @@ class Componentcita(Component):
             "mapping": "node",
             "doc": "Sediment grain size on the node (single size sediment).",
         },
-        "reach_length": {
-            "dtype": float,
-            "intent": "out",
-            "optional": False,
-            "units": "m",
-            "mapping": "node",
-            "doc": "River channel lenght = weighted average (links upstream + link downstream)  ",
-        },
         "sed_capacity": {
             "dtype": float,
             "intent": "out",
@@ -307,7 +299,6 @@ class Componentcita(Component):
         on the model by Zhang et al (2015,2018)
         """
         # calculate parameters needed in the pde
-        tau_star_crit = self._critical_shear_star()  # currently ignored, we use 0.0495 from the paper
         tau_star_crit = self.sstau_star_c
         tau_star = self._calculate_shear_star()
         self._calculate_fraction_alluvium_cover(self.p0, self.p1)
@@ -454,6 +445,8 @@ class Componentcita(Component):
         used in the differential equations as the mean of upstream
         and downstream distance for every node. It also returns the
         a list of dx for each joint upstream node.
+
+        dx at joint = weighted average (links upstream + link downstream)
         """
         dx = (self._downstream_distance[self._unode]
               + self._downstream_distance[self._dnode]) / 2
@@ -568,7 +561,7 @@ class Componentcita(Component):
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
 
-        dx = self._grid.at_node["reach_length"]
+        dx = self._dx
         if self.corrected:
             p = self._grid.at_node["fraction_alluvium_avaliable"]
         else:
@@ -583,7 +576,7 @@ class Componentcita(Component):
         # joint flux calculations
         up_joint_pq = [np.sum(pq[self.ujoints[joint]]) for joint in self.joints]
         up_joint_pq = np.array(up_joint_pq)
-        dpq[self.joints] = (-c * up_joint_pq
+        dpq[self.joints] = (- c * up_joint_pq
                             + (2 * c - 1) * pq[self.joints]
                             + (1 - c) * pq[self._dnode[self.joints]])
         if (c == 1) or (c == 0):
