@@ -15,7 +15,7 @@ from landlab.grid.create_network import network_grid_from_raster
 from landlab import NetworkModelGrid
 
 # import my DumbComponent
-from landlab.components import Componentcita as comp
+from landlab.components import BedRockAbrassionCoverEroder as BRACE
 YEAR = 365.25 * 24 * 60 * 60
 
 
@@ -106,7 +106,7 @@ class Sedgraph:
 
     @staticmethod
     def Zhang(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
-        sed_graph = comp.Componentcita.sedimentograph(time, dt, Tc, rh, qm,
+        sed_graph = BRACE.sedimentograph(time, dt, Tc, rh, qm,
                                                       rqh, random, **kwargs)
         return sed_graph
 
@@ -164,7 +164,7 @@ class Model1D:
         flow_director.run_one_step()
 
         # initial values and parameters of the network
-        comp.Componentcita._preset_fields(
+        BRACE._preset_fields(
             ngrid=ngrid,
             discharge=discharge,
             channel_width=channel_width,
@@ -173,7 +173,7 @@ class Model1D:
             sed_capacity=initial_sed_capacity,
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
-        nety = comp.Componentcita(ngrid, flow_director,
+        nety = BRACE(ngrid, flow_director,
                                   au=allu_smooth, su=slope_smooth)
 
         return ngrid, nety
@@ -308,7 +308,7 @@ class Model1D:
         flow_director.run_one_step()
 
         # initial values and parameters of the network
-        comp.Componentcita._preset_fields(
+        BRACE._preset_fields(
             ngrid=ngrid,
             discharge=discharge,
             channel_width=channel_width,
@@ -317,7 +317,7 @@ class Model1D:
             sed_capacity=initial_sed_capacity,
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
-        nety = comp.Componentcita(ngrid, flow_director,
+        nety = BRACE(ngrid, flow_director,
                                   au=allu_smooth, su=slope_smooth)
 
         # downstream distance for plots

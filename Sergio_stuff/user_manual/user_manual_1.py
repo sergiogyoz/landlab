@@ -4,10 +4,11 @@ import landlab.plot.graph as graph
 from landlab import imshow_grid
 from landlab.io import read_esri_ascii
 from landlab.grid.create_network import network_grid_from_raster
-from landlab.components import Componentcita as comp
+from landlab.components import BedRockAbrassionCoverEroder as BRACE
 from landlab.components import FlowDirectorSteepest
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 
 x_of_nodes = [1, 1, 2, 3]
 y_of_nodes = [3, 1, 2, 2]
@@ -18,7 +19,9 @@ graph.plot_graph(ngrid, at="node,link", with_id=True)
 
 # %%
 # store it as a raster file
-rastergrid, topography = read_esri_ascii("short_reach.asc")
+dir = Path(__file__).resolve().parent
+file = dir / "short_reach.asc"
+rastergrid, topography = read_esri_ascii(file)
 rastergrid.add_field("topographic__elevation", topography)
 # plot spatially the topography
 imshow_grid(rastergrid, rastergrid.at_node["topographic__elevation"], cmap='inferno_r')
@@ -28,12 +31,14 @@ ngrid = network_grid_from_raster(rastergrid)
 graph.plot_graph(ngrid, at="node,link", with_id=True)
 
 # %%
-comp.Componentcita._preset_fields(ngrid=ngrid)
+BRACE._preset_fields(ngrid=ngrid)
 flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
 
 # %%
-nety = comp.Componentcita(ngrid, flow_director)
+nety = BRACE(ngrid, flow_director,
+             discharge= 600,
+             mean_alluvium_thickness= 1)
 
 # %%
 YEAR = 365.25 * 24 * 60 * 60
@@ -44,7 +49,7 @@ xs[1:] = np.cumsum(nety._downstream_distance[:-1])
 # y can be any grid landlab fields
 ys = ngrid.at_node["topographic__elevation"]
 plt.plot(xs, ys, label="initial")
-plt.title("mean alluvium thickness")
+plt.title("bedrock")
 
 # %%
 # setup
