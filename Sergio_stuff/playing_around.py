@@ -13,7 +13,7 @@ import landlab.plot.graph as graph
 from landlab.grid.create_network import network_grid_from_raster
 
 # import my DumbComponent
-from landlab.components import Componentcita as comp
+from landlab.components import BedRockAbrassionCoverEroder as BRACE
 
 
 # grid setup
@@ -92,7 +92,7 @@ D = 0.02
 sed_capacity = 0
 macroroughness = 1
 alluvium = 0.5
-comp.Componentcita._preset_fields(
+BRACE._preset_fields(
     ngrid=ngrid,
     channel_width=channel_width,
     flood_discharge=discharge,
@@ -102,7 +102,7 @@ comp.Componentcita._preset_fields(
     macroroughness=macroroughness,
     mean_alluvium_thickness=alluvium)
 
-nety = comp.Componentcita(ngrid, flow_director, clobber=True)
+nety = BRACE(ngrid, flow_director, clobber=True)
 
 # %%
 # prep for model
@@ -126,7 +126,7 @@ fraction_at_high_feed = 0.25  # rh
 scale_of_high_feed = 1  # rqh
 cycle_period = 40 * year
 random_seed = 2
-sedgraph = comp.Componentcita.sedimentograph(
+sedgraph = BRACE.sedimentograph(
     time=times, dt=dt,
     Tc=cycle_period,
     rh=fraction_at_high_feed,

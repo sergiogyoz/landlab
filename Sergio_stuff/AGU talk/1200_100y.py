@@ -15,7 +15,7 @@ from landlab.components import FlowDirectorSteepest
 from landlab.grid.create_network import network_grid_from_raster
 
 # import my DumbComponent
-from landlab.components import Componentcita as comp
+from landlab.components import BedRockAbrassionCoverEroder as BRACE
 # and some tools
 from mytools import Model1D as m1d
 YEAR = 365.25 * 24 * 60 * 60
@@ -43,4 +43,3 @@ m1d.plot_sed_graph(sed_data, filesname, plotsdir)
 m1d.plot_1D_fields(context, records, filesname, savedir=plotsdir)
 m1d.save_records_csv(records, datadir, filesname)
 # %%
-
