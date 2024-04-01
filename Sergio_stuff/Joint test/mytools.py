@@ -15,7 +15,7 @@ from landlab.grid.create_network import network_grid_from_raster
 from landlab import NetworkModelGrid
 
 # import my DumbComponent
-from landlab.components import BedRockAbrassionCoverEroder as BRACE
+from landlab.components import BedRockAbrasionCoverEroder as BRACE
 YEAR = 365.25 * 24 * 60 * 60
 
 

@@ -6,9 +6,9 @@ from landlab.components import FlowDirectorSteepest
 from landlab.grid.network import NetworkModelGrid
 
 
-class BedRockAbrassionCoverEroder(Component):
+class BedRockAbrasionCoverEroder(Component):
     """
-    BedRockAbrassionCoverEroder or BRACE is a landlab implementation of the
+    BedRockAbrasionCoverEroder or BRACE is a landlab implementation of the
     MRSAA-c mode from Zhang's 2017 paper. BRACE models Saltation, Abrassion,
     and Alluvium cover on a river reach. It uses the scale of the macroroughness
     and sediment properties to model the change in the alluvium and erosion
@@ -17,7 +17,7 @@ class BedRockAbrassionCoverEroder(Component):
     Created by Sergio Villamarin
     """
 
-    _name = "BedRockAbrassionCoverEroder"
+    _name = "BedRockAbrasionCoverEroder"
 
     _unit_agnostic = False
     # all arguments are optional for now, yet to review
@@ -128,7 +128,7 @@ class BedRockAbrassionCoverEroder(Component):
 
     def __init__(self, grid, flow_director, corrected=True, **kwargs):
         """
-        Creates a BedRockAbrassionCoverEroder object. If field values
+        Creates a BedRockAbrasionCoverEroder object. If field values
         are provided as parameters in this function with the documented
         field name, they will be created if the did not exist before.
         It won't replace preset values in landlab fields.
@@ -231,7 +231,7 @@ class BedRockAbrassionCoverEroder(Component):
         """
 
         # add the extra required parameters to the grid if not provided
-        BedRockAbrassionCoverEroder._preset_fields(grid, False, **kwargs)
+        BedRockAbrasionCoverEroder._preset_fields(grid, False, **kwargs)
         super().__init__(grid)
 
         self.corrected = corrected

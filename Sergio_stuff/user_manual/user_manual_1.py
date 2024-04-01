@@ -4,7 +4,7 @@ import landlab.plot.graph as graph
 from landlab import imshow_grid
 from landlab.io import read_esri_ascii
 from landlab.grid.create_network import network_grid_from_raster
-from landlab.components import BedRockAbrassionCoverEroder as BRACE
+from landlab.components import BedRockAbrasionCoverEroder as BRACE
 from landlab.components import FlowDirectorSteepest
 import matplotlib.pyplot as plt
 import numpy as np

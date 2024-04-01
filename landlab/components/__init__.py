@@ -60,7 +60,7 @@ from .profiler import ChannelProfiler, Profiler, TrickleDownProfiler
 from .radiation import Radiation
 from .Sergio import (  # Making my components visible when importing landlab
     DumbC,
-    BedRockAbrassionCoverEroder,)
+    BedRockAbrasionCoverEroder,)
 from .sink_fill import SinkFiller, SinkFillerBarnes
 from .soil_moisture import SoilInfiltrationGreenAmpt, SoilMoisture
 from .space import Space, SpaceLargeScaleEroder
@@ -139,7 +139,7 @@ COMPONENTS = [
     Radiation,
     SedDepEroder,
     DumbC,  # listing inside the components __all__
-    BedRockAbrassionCoverEroder,  # once more for the new component
+    BedRockAbrasionCoverEroder,  # once more for the new component
     SedimentPulserAtLinks,
     SedimentPulserEachParcel,
     SimpleSubmarineDiffuser,
