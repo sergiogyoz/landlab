@@ -10,9 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
+# %%
 x_of_nodes = [1, 1, 2, 3]
 y_of_nodes = [3, 1, 2, 2]
-links = [(0, 2) , (1, 2), (2, 3)]
+links = [(0,2) ,(1,2), (2,3)]
 
 ngrid = NetworkModelGrid((y_of_nodes, x_of_nodes), links)
 graph.plot_graph(ngrid, at="node,link", with_id=True)
@@ -31,33 +32,32 @@ ngrid = network_grid_from_raster(rastergrid)
 graph.plot_graph(ngrid, at="node,link", with_id=True)
 
 # %%
-BRACE._preset_fields(ngrid=ngrid)
 flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
 
 # %%
 nety = BRACE(ngrid, flow_director,
-             discharge= 600,
-             mean_alluvium_thickness= 1)
+             discharge=600,
+             mean_alluvium_thickness=1)
 
 # %%
 YEAR = 365.25 * 24 * 60 * 60
 
 # x values are distance downstream (going from left to right)
-xs = np.zeros_like(nety._downstream_distance)
-xs[1:] = np.cumsum(nety._downstream_distance[:-1])
+xs = np.zeros_like(nety.downstream_distance)
+xs[1:] = np.cumsum(nety.downstream_distance[:-1])
 # y can be any grid landlab fields
-ys = ngrid.at_node["topographic__elevation"]
-plt.plot(xs, ys, label="initial")
-plt.title("bedrock")
+ys = ngrid.at_node["bedrock"]
+plt.plot(xs, ys)
+plt.title("Bedrock")
 
 # %%
-# setup
+# times of the run
 dt = YEAR / 1000
 one_year = round(1 * YEAR / dt)
-total_time = round(0.5 * one_year)
-record_time = round(0.1 * one_year)
-# plot every
+total_time = round(0.3 * one_year)
+record_time = round(0.02 * one_year)
+# plot every record time
 for t in range(total_time + 1):
     if t % record_time == 0:
         # plot the new alluvium

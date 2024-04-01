@@ -13,7 +13,7 @@ import landlab.plot.graph as graph
 from landlab.grid.create_network import network_grid_from_raster
 
 # import my DumbComponent
-from landlab.components import BedRockAbrassionCoverEroder as BRACE
+from landlab.components import BedRockAbrasionCoverEroder as BRACE
 
 
 # grid setup

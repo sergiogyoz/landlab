@@ -31,7 +31,7 @@ context, records, sed_data = m1d.model1D(total_time=1240 * YEAR,
                                          cycle_period=40 * YEAR)
 # %%
 # folder to save run results
-folder_name = "steady_sed_waves-2"
+folder_name = "steady_sed_waves-3"
 filesname = "1200y-1240y"
 savedir = path.Path("C:/Users/Sergio/Documents/"
                     + "GitHub/Sharing/Nicole/runs/"

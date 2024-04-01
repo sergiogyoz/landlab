@@ -293,8 +293,8 @@ class BedRockAbrasionCoverEroder(Component):
         # add output fields
         self.initialize_output_fields()
         # update channel slopes
-        self._downstream_distance = self._calculate_reach_length()
-        self._dx, self._j_dx = self._calculate_dx()
+        self.downstream_distance = self._calculate_reach_length()
+        self.dx, self._j_dx = self._calculate_dx()
         self.slope = self._update_channel_slopes()
         # set conditions at the futher dowstream nodes
         # currently not handled as only the open boundary case is dealt with
@@ -438,7 +438,7 @@ class BedRockAbrasionCoverEroder(Component):
 
         S = -(- c * y[self._unode]
               + (2 * c - 1) * y
-              + (1 - c) * y[self._dnode]) / self._dx
+              + (1 - c) * y[self._dnode]) / self.dx
 
         # joint upstream weighted slope
         for joint in self.joints:
@@ -483,16 +483,16 @@ class BedRockAbrasionCoverEroder(Component):
 
         dx at joint = weighted average (links upstream + link downstream)
         """
-        dx = (self._downstream_distance[self._unode]
-              + self._downstream_distance[self._dnode]) / 2
+        dx = (self.downstream_distance[self._unode]
+              + self.downstream_distance) / 2
         # fix sources and outlets
-        dx[self.sources] = self._downstream_distance[self.sources]
-        dx[self.outlets] = self._downstream_distance[self._unode[self.outlets]]
+        dx[self.sources] = self.downstream_distance[self.sources]
+        dx[self.outlets] = self.downstream_distance[self._unode[self.outlets]]
         # do dx joint calculations separately
         j_dx = {}
         for joint in self.joints:
-            j_dx[joint] = (self._downstream_distance[self.ujoints[joint]]
-                           + self._downstream_distance[joint]) / 2
+            j_dx[joint] = (self.downstream_distance[self.ujoints[joint]]
+                           + self.downstream_distance[joint]) / 2
         return dx, j_dx
 
     def _calculate_flow_depths(self):
@@ -596,7 +596,6 @@ class BedRockAbrasionCoverEroder(Component):
         fraction of alluvium cover and fraction of avaliable alluvium.
         """
 
-        dx = self._dx
         if self.corrected:
             p = self._grid.at_node["fraction_alluvium_avaliable"]
         else:
@@ -621,7 +620,7 @@ class BedRockAbrasionCoverEroder(Component):
             dpq[self.outlets] = dpq[self.outlets] / (c)
 
         cover_dif = (-self._grid.at_node["flood_intermittency"]
-                     * dpq / dx
+                     * dpq / self.dx
                      * dt / (1 - self.porosity)
                      / self._grid.at_node["fraction_alluvium_cover"])
 

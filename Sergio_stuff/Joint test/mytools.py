@@ -49,11 +49,11 @@ class Grid_geometry:
 
         x_of_node = [i for i in range(n)]  # 0,1,...,n-1
         y_of_node = [0 for i in range(n)]
-        steep = [(n - 1 - i) * steepness for i in range (n)]
+        steep = [(n - 1 - i) * steepness for i in range(n)]
 
         x_vert = [midn for i in range(1, m)]  # n,..., n+m-1
         y_vert = [i for i in range(1, m)]
-        steep_vert = [steep[midn] + i * steepness for i in range (1,m)]
+        steep_vert = [steep[midn] + i * steepness for i in range(1, m)]
 
         links = [(i, i + 1) for i in range(n - 1)]
         links_vert = [(i, i + 1) for i in range(n, n + m - 2)]
@@ -107,7 +107,7 @@ class Sedgraph:
     @staticmethod
     def Zhang(time, dt, Tc, rh=0.25, qm=0.000834, rqh=1, random=False, **kwargs):
         sed_graph = BRACE.sedimentograph(time, dt, Tc, rh, qm,
-                                                      rqh, random, **kwargs)
+                                         rqh, random, **kwargs)
         return sed_graph
 
     @staticmethod
@@ -174,7 +174,7 @@ class Model1D:
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
         nety = BRACE(ngrid, flow_director,
-                                  au=allu_smooth, su=slope_smooth)
+                     au=allu_smooth, su=slope_smooth)
 
         return ngrid, nety
 
@@ -189,7 +189,7 @@ class Model1D:
                           show_timer=True
                           ):
         # downstream distance for plots
-        xs = np.copy(ngrid.at_node["reach_length"])
+        xs = np.copy(nety.downstream_distance)
         xs = np.cumsum(xs) - xs[0]
         times = np.arange(0, total_time + dt, dt)
         sed_graph = sed_data["sedgraph"]
@@ -230,7 +230,10 @@ class Model1D:
                 timer.clock(show=show_timer)
                 # store records
                 for field in fields:
-                    records[field][r_ind] = ngrid.at_node[field]
+                    if field == "channel_slope":
+                        records[field][r_ind] = nety.slope
+                    else:
+                        records[field][r_ind] = ngrid.at_node[field]
                 if not extra_fields:
                     # alluvium + bed
                     y = ngrid.at_node[fields[0]] + ngrid.at_node[fields[1]]
@@ -238,13 +241,13 @@ class Model1D:
                     # bed slope
                     y = ((ngrid.at_node[fields[0]][nety._unode]
                          - ngrid.at_node[fields[0]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety.dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
                     y = ((ngrid.at_node[fields[1]][nety._unode]
                          - ngrid.at_node[fields[1]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety.dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1
@@ -318,10 +321,10 @@ class Model1D:
             macroroughness=macroroughness,
             mean_alluvium_thickness=initial_allu_thickness)
         nety = BRACE(ngrid, flow_director,
-                                  au=allu_smooth, su=slope_smooth)
+                     au=allu_smooth, su=slope_smooth)
 
         # downstream distance for plots
-        xs = np.copy(ngrid.at_node["reach_length"])
+        xs = np.copy(nety.downstream_distance)
         xs = np.cumsum(xs) - xs[0]
         times = np.arange(0, total_time + dt, dt)
 
@@ -372,7 +375,10 @@ class Model1D:
                 timer.clock(show=show_timer)
                 # store records
                 for field in fields:
-                    records[field][r_ind] = ngrid.at_node[field]
+                    if field == "channel_slope":
+                        records[field][r_ind] = nety.slope
+                    else:
+                        records[field][r_ind] = ngrid.at_node[field]
                 if not extra_fields:
                     # alluvium + bed
                     y = ngrid.at_node[fields[0]] + ngrid.at_node[fields[1]]
@@ -380,13 +386,13 @@ class Model1D:
                     # bed slope
                     y = ((ngrid.at_node[fields[0]][nety._unode]
                          - ngrid.at_node[fields[0]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety.dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[1]][r_ind] = y
                     # alluvium slope
                     y = ((ngrid.at_node[fields[1]][nety._unode]
                          - ngrid.at_node[fields[1]][nety._dnode])
-                         / ngrid.at_node["reach_length"])
+                         / nety.dx)
                     y[1:-1] = y[1:-1] / 2
                     records[extras[2]][r_ind] = y
                 r_ind = r_ind + 1
