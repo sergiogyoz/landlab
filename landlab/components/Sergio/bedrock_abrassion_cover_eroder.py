@@ -317,7 +317,7 @@ class BedRockAbrasionCoverEroder(Component):
         `source`: `string`
             can be set as `"copy_downstream"`, `"open"`, or `"set_value"`. It
             defaults to `"set_value"` which sets the sed_capacity at the upstream
-            end to the `q_in` parameter.
+            ends to the `q_in` parameter.
 
         `q_in`: `float` or `grid`
             values of sediment flux at the sources if `source` is set to `"set_value"`
@@ -419,12 +419,27 @@ class BedRockAbrasionCoverEroder(Component):
         flow_from_none = (self._grid["node"]["flow__sender_node"] == nodes)
         return nodes[flow_from_none]
 
+    def _get_channels(self):
+        """Returns a dictionary of key:value pairs where the keys are the source
+          nodes and values are correponding list of nodes ordered from source to
+          outlet"""
+        channels = {}
+        for source in self.sources:
+            node = source
+            channel = []
+            channel.append(node)
+            while node not in self.outlets:
+                node = self._dnode[node]
+                channel.append(node)
+            channels[source] = channel
+        return channels
+
     def _update_channel_slopes(self):
         """
         Returns the channel slopes using the mean alluvium cover and the
         bedrock.
 
-        At joints it calculates an weighted average slope using the
+        At joints it calculates a weighted average slope using the
         discharge from the tributaries as weights.
 
         Additional parameter used helps smooth peaks caused by the numerical

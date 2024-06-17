@@ -15,6 +15,7 @@ from landlab.components import FlowDirectorSteepest
 from landlab.grid.create_network import network_grid_from_raster
 from landlab import imshow_grid
 import landlab.plot.graph as graph
+from landlab.components import ChannelProfiler
 
 # import my DumbComponent
 from landlab.components import BedRockAbrasionCoverEroder as BRACE
@@ -49,7 +50,7 @@ ngrid.add_field("topographic__elevation", steep)
 flow_director = FlowDirectorSteepest(ngrid)
 flow_director.run_one_step()
 # initial values and parameters of the network
-BRACE.BedRockAbrasionCoverEroder._preset_fields(
+BRACE._preset_fields(
     ngrid=ngrid,
     discharge=discharge,
     channel_width=channel_width,
@@ -58,12 +59,24 @@ BRACE.BedRockAbrasionCoverEroder._preset_fields(
     sed_capacity=initial_sed_capacity,
     macroroughness=macroroughness,
     mean_alluvium_thickness=initial_allu_thickness)
-nety = BRACE.BedRockAbrasionCoverEroder(ngrid, flow_director,
-                          au=allu_smooth, su=slope_smooth)
+nety = BRACE(ngrid, flow_director,
+             au=allu_smooth, su=slope_smooth)
 # %%
-nety.run_one_step(dt=YEAR / 1000, q_in=0.000834)
-"""See channel profiler to figure out how to get the network later"""
+# ploting channels
 j, u = nety._find_joints()
+channels = nety._get_channels()
+# plotting with channel profiler didn't work
+# ChannelProfiler(ngrid , channel_definition_field="discharge", minimum_channel_threshold=0)
+
+
+# %%
+# run one step
+q_default = 0.000834
+q_in = np.array([q_default, 3 * q_default])
+nety.run_one_step(dt=YEAR / 1000, q_in=q_in)
+np.cumsum(nety.downstream_distance[channels[0]])  # I can get the x values for the plot this way
+"""See channel profiler to figure out how to get the network plot later"""
+
 
 # %%
 # folder to save run results
