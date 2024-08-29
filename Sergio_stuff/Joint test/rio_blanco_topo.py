@@ -11,19 +11,46 @@ import os
 
 from landlab import RasterModelGrid
 from landlab import NetworkModelGrid
-from landlab.components import FlowDirectorSteepest
 from landlab.grid.create_network import network_grid_from_raster
 from landlab import imshow_grid
 import landlab.plot.graph as graph
-from landlab.components import ChannelProfiler
+from landlab.components import ChannelProfiler, FlowAccumulator, FlowDirectorSteepest, DepressionFinderAndRouter
+from landlab import imshow_grid
+from landlab.io import read_esri_ascii
 
 # import my DumbComponent
 from landlab.components import BedRockAbrasionCoverEroder as BRACE
 # and some tools
 from mytools import Grid_geometry as geom
 YEAR = 365.25 * 24 * 60 * 60
+# %% -------------
 
+# read ascii and store it as a raster object
+filepath = "C:/Users/Sergio/Documents/GitHub/landlab_projects/Puerto Rico/Qgis_10m_resolution/rio_blanco_raster.asc"
+rastergrid, topography = read_esri_ascii(filepath)
+rastergrid.add_field("topographic__elevation", topography)
+# plot spatially the topography
+imshow_grid(rastergrid, rastergrid.at_node["topographic__elevation"], cmap='inferno_r')
+
+# %% -------------
+# watershed boundary
+outletid = rastergrid.set_watershed_boundary_condition("topographic__elevation", return_outlet_id=True)
 # %%
+# flow direction
+flow = FlowAccumulator(rastergrid, flow_director="D8")
+flow.run_one_step()
+# %%
+# fill out sinks
+df = DepressionFinderAndRouter(rastergrid)
+df.map_depressions()
+# %%
+# get channels
+profiler = ChannelProfiler(rastergrid,
+                           minimum_channel_threshold=100,
+                           main_channel_only=False)
+profiler.run_one_step()
+
+# %% ----------
 total_lenght = 2000
 reach_lenght = 200
 initial_slope = 0.004
